@@ -1,0 +1,7 @@
+if(TSKV_USE_SANITIZERS)
+  message(STATUS "Sanitizers: Address + Undefined enabled")
+  add_compile_options(-fsanitize=address,undefined)
+  add_link_options(-fsanitize=address,undefined)
+else()
+  message(STATUS "Sanitizers: OFF")
+endif()

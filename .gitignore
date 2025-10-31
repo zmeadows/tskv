@@ -1,0 +1,84 @@
+# --- Build directories ---
+/build/
+/build-*/
+/cmake-build-*/
+/out/
+/dist/
+
+# --- CMake artifacts ---
+CMakeCache.txt
+CMakeFiles/
+/Testing/
+/_ctest_*
+CTestTestfile.cmake
+cmake_install.cmake
+install_manifest.txt
+
+# If you generate presets locally, ignore the local-only variant
+CMakeUserPresets.json
+
+# Compilation database (we symlink/copy it to repo root)
+compile_commands.json
+
+# Optional provenance file if ever emitted outside build/
+buildinfo.txt
+
+# --- Objects, libs, binaries ---
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+
+# --- Coverage (future-proof) ---
+*.gcda
+*.gcno
+*.gcov
+
+# --- Sanitizer / crash artifacts ---
+*.asan.*
+asan-*.log
+ubsan-*.log
+sanitizer*.log
+core
+core.*
+vgcore.*
+
+# --- Logs ---
+*.log
+
+# --- Editors / OS cruft ---
+*~
+*.swp
+*.swo
+*.swm
+.session
+.netrwhist
+tags
+.TAGS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Tool caches ---
+.cache/
+.ccache/
+
+# --- Profiling / misc outputs ---
+perf.data*
+*.perf
+flamegraph.svg
+
+# --- Generated archives ---
+*.zip
+*.tar
+*.tar.gz
+*.tgz
