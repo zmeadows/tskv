@@ -1,0 +1,6 @@
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  message(FATAL_ERROR "Step 0 requires Clang >= 17. Detected: ${CMAKE_CXX_COMPILER_ID}")
+endif()
+if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0.0")
+  message(FATAL_ERROR "Clang >= 17 is required. Detected: ${CMAKE_CXX_COMPILER_VERSION}")
+endif()
