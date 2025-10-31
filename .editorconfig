@@ -1,0 +1,74 @@
+root = true
+
+# -----------------------------------------------------------------------------
+# Defaults (fallback for any file not matched below)
+# -----------------------------------------------------------------------------
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Conservative default indent
+indent_style = space
+indent_size = 2
+
+# -----------------------------------------------------------------------------
+# C/C++ (headers & impls, including .inl/.tpp/.ipp)
+# Match clang-format: IndentWidth: 2
+# -----------------------------------------------------------------------------
+[*.{c,cc,cpp,cxx,h,hpp,hxx,inl,tpp,ipp}]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+# -----------------------------------------------------------------------------
+# CMake (CMakeLists + .cmake modules)
+# -----------------------------------------------------------------------------
+[{CMakeLists.txt,*.cmake}]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+# -----------------------------------------------------------------------------
+# Python (Black defaults)
+# -----------------------------------------------------------------------------
+[*.py]
+indent_style = space
+indent_size = 4
+# Informative for some editors; Black enforces 88 regardless
+max_line_length = 88
+
+# -----------------------------------------------------------------------------
+# YAML / JSON / TOML (Prettier defaults)
+# Covers: .clang-format, .clang-tidy, .cmake-format.yaml, .prettierrc.yaml,
+# GH workflows, CMakePresets.json, etc.
+# -----------------------------------------------------------------------------
+[*.{yml,yaml,json,toml}]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+# -----------------------------------------------------------------------------
+# Markdown
+# Keep trailing spaces (they can be hard line breaks)
+# -----------------------------------------------------------------------------
+[*.md]
+trim_trailing_whitespace = false
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+# -----------------------------------------------------------------------------
+# Shell / Bash
+# -----------------------------------------------------------------------------
+[*.{sh,bash}]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+# -----------------------------------------------------------------------------
+# Makefiles (tabs required)
+# -----------------------------------------------------------------------------
+[Makefile]
+indent_style = tab

@@ -1,10 +1,4 @@
 ---
-# =============================================================================
-# Byteweave C++ formatting
-# - Keep it simple and stable across Linux/macOS/Windows and CF versions.
-# - Amalgamation-safe: never reorder includes or perturb IWYU trailing comments.
-# =============================================================================
-
 BasedOnStyle: LLVM
 Language: Cpp
 
@@ -70,4 +64,4 @@ PointerAlignment: Left
 # -----------------------------------------------------------------------------
 # 7) Comments
 # -----------------------------------------------------------------------------
-ReflowComments: true
+ReflowComments: false
