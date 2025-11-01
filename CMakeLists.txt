@@ -48,6 +48,6 @@ enable_testing()
 
 add_subdirectory(src/common)
 add_subdirectory(src/net)
-add_subdirectory(src/kv)
+add_subdirectory(src/storage)
 add_subdirectory(cmd)
 add_subdirectory(tests)

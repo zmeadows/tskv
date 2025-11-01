@@ -5,7 +5,7 @@ Language: Cpp
 # -----------------------------------------------------------------------------
 # 1) Project invariants (amalgamation / IWYU safety)
 # -----------------------------------------------------------------------------
-SortIncludes: false # Do NOT reorder includes; single-header depends on order
+SortIncludes: true
 IncludeBlocks: Preserve # Keep grouping exactly as written (no merging/splitting)
 AlignTrailingComments: false # Avoid shifting `// IWYU pragma: keep` or end-of-line notes
 SortUsingDeclarations: false # Keep local `using ...` in author-chosen order
