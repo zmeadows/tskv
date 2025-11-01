@@ -2,6 +2,9 @@
 BasedOnStyle: LLVM
 Language: Cpp
 
+IfMacros:
+  - defer
+
 # -----------------------------------------------------------------------------
 # 1) Project invariants (amalgamation / IWYU safety)
 # -----------------------------------------------------------------------------

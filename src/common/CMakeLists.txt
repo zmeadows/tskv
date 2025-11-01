@@ -7,4 +7,5 @@ target_sources(
          FILES
          logging.ixx
          files.ixx
-         enum_traits.ixx)
+         enum_traits.ixx
+  PUBLIC FILE_SET HEADERS FILES defer.hpp)
