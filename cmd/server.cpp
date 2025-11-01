@@ -63,19 +63,25 @@ struct ServerConfig {
     TRY_ARG_ASSIGN(args, config.max_connections, "max-connections");
 
     // 2) Validate
-    if (config.port == 0) {
-      return std::unexpected(std::format("Invalid port: 0"));
+    if (config.port < 1 || config.port > 65535) {
+      return std::unexpected(std::format("invalid_port: expected 1..65535 (got {})", config.port));
     }
 
-    auto clean_data_dir = tc::standardize_path(config.data_dir);
-    if (!clean_data_dir) {
-      return std::unexpected(clean_data_dir.error());
-    }
-    config.data_dir = *clean_data_dir;
+    {
+      auto clean_data_dir = tc::standardize_path(config.data_dir);
+      if (!clean_data_dir) {
+        return std::unexpected(std::format("invalid_data_dir: {}", clean_data_dir.error()));
+      }
+      config.data_dir = *clean_data_dir;
 
-    if (!tc::is_writeable(config.data_dir.parent_path())) {
-      return std::unexpected(
-        std::format("Failed to detect data-dir write-access at: {}", config.data_dir.string()));
+      const bool data_dir_exists = fs::exists(config.data_dir);
+      const bool parent_bad = !data_dir_exists && !tc::can_create_in(config.data_dir.parent_path());
+      const bool leaf_bad   = data_dir_exists && !tc::can_create_in(config.data_dir);
+
+      if (parent_bad || leaf_bad) {
+        return std::unexpected(
+          std::format("write-access unavailable for data-dir: {}", config.data_dir.string()));
+      }
     }
 
     return config;
@@ -83,22 +89,28 @@ struct ServerConfig {
 
   void print() const
   {
-    std::println(std::cerr, "SERVER CONFIGURATION:");
-    std::println(std::cerr, "\thost: {}", this->host);
-    std::println(std::cerr, "\tport: {}", this->port);
-    std::println(std::cerr, "\tdata-dir: {}", this->data_dir.string());
-    std::println(std::cerr, "\twal-sync: {}", tc::to_string(this->wal_sync_policy));
-    std::println(std::cerr, "\tmemtable-bytes: {}", this->memtable_bytes);
-    std::println(std::cerr, "\tmax-connections: {}", this->max_connections);
+    std::print("tsk server CFG");
+    std::print(" host={}", this->host);
+    std::print(" port={}", this->port);
+    std::print(" data-dir={}", this->data_dir.string());
+    std::print(" wal-sync={}", tc::to_string(this->wal_sync_policy));
+    std::print(" memtable-bytes={}", this->memtable_bytes);
+    std::print(" max-connections={}", this->max_connections);
+    std::print("\n");
   }
 };
+
+static void print_error(std::string_view msg)
+{
+  std::println(std::cerr, "tskv server ERR :: {}", msg);
+}
 
 int main_(int argc, char** argv)
 {
   cmd::CmdLineArgs args(argc, argv);
 
   if (auto res = args.parse(); !res) {
-    std::cerr << "CLI parse error: \n\t" << res.error() << '\n';
+    print_error(res.error());
     return EXIT_FAILURE;
   }
 
@@ -114,7 +126,7 @@ int main_(int argc, char** argv)
 
   const auto config = ServerConfig::from_cli(args);
   if (!config) {
-    std::println(std::cerr, "{}", config.error());
+    print_error(config.error());
     return EXIT_FAILURE;
   }
 

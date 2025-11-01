@@ -47,8 +47,8 @@ struct ClientConfig {
     TRY_ARG_ASSIGN(args, config.timeout_ms, "timeout-ms");
 
     // 2) Validate
-    if (config.port == 0 || config.port > 65535) {
-      return std::unexpected(std::format("Invalid port: {}", config.port));
+    if (config.port < 1 || config.port > 65535) {
+      return std::unexpected(std::format("invalid_port: expected 1..65535 (got {})", config.port));
     }
 
     return config;
@@ -56,10 +56,11 @@ struct ClientConfig {
 
   void print() const
   {
-    std::println(std::cerr, "CLIENT CONFIGURATION:");
-    std::println(std::cerr, "\thost: {}", this->host);
-    std::println(std::cerr, "\tport: {}", this->port);
-    std::println(std::cerr, "\ttimeout-ms: {}", this->timeout_ms);
+    std::print("tsk client CFG");
+    std::print(" host={}", this->host);
+    std::print(" port={}", this->port);
+    std::print(" timeout-ms={}", this->timeout_ms);
+    std::print("\n");
   }
 };
 

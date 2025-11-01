@@ -51,19 +51,22 @@ public:
       std::string_view tok(_args[i]);
       if (!tok.starts_with("--")) {
         bail();
-        return std::unexpected(std::format("expected flag starting with --, but found: {}", tok));
+        return std::unexpected(
+          std::format("bad_cli_arg: expected flag starting with -- (got \"{}\")", tok));
       }
 
       tok.remove_prefix(2); // strip "--"
 
       if (tok.empty()) {
         bail();
-        return std::unexpected("found stand-alone double dash \"--\" which isn't supported.");
+        return std::unexpected(
+          std::format("bad_cli_arg: found unsupported stand-alone double dash \"--\""));
       }
 
       if (_kvs.contains(tok) || _flags.contains(tok)) {
         bail();
-        return std::unexpected(std::format("key/flag specified twice: --{}", tok));
+        return std::unexpected(
+          std::format("duplicate_ci_args: key/flag specified twice --{}", tok));
       }
 
       // Handle --key value  OR a standalone --flag
@@ -87,13 +90,15 @@ public:
   {
     auto kit = _kvs.find(key);
     if (kit == _kvs.end()) {
-      return std::unexpected(std::format("missing key: {}", key));
+      return std::unexpected(std::format("missing_key: key not found ({})", key));
     }
 
     std::string_view sv = kit->second;
     _kvs.erase(kit);
 
-    auto errmsg = [&]() { return std::format("Invalid CLI argument: --{} {}", key, sv); };
+    auto errmsg = [&]() {
+      return std::format("value_parse_err: failed to parse --{} value \"{}\"", key, sv);
+    };
 
     if constexpr (std::is_same_v<V, std::string>) {
       return std::string(sv);
@@ -127,7 +132,7 @@ public:
       return std::unexpected(errmsg());
     }
     else {
-      static_assert(!sizeof(V), "pop_value<V>: unsupported type V");
+      static_assert(!sizeof(V), "pop_value: unsupported type");
     }
   }
 
