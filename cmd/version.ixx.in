@@ -1,0 +1,39 @@
+module;
+
+#include <print>
+#include <string_view>
+
+export module cmd.version;
+
+export namespace tskv::cmd {
+
+struct VersionInfo {
+  std::string_view project;
+  std::string_view version;
+  std::string_view git_sha;
+  std::string_view build_utc;
+  std::string_view compiler_id;
+  std::string_view compiler_ver;
+};
+
+// Single source of truth for version/build metadata.
+inline constexpr VersionInfo version_info{"tskv",
+                                          "@TSKV_PROJECT_VERSION@",
+                                          "@TSKV_GIT_SHA@",
+                                          "@TSKV_BUILD_UTC@",
+                                          "@TSKV_COMPILER_ID@",
+                                          "@TSKV_COMPILER_VER@"};
+
+// Prints the same one-line summary to stdout.
+inline void print_version()
+{
+  std::println("{} {} (git {}) built {} with {} {}",
+               version_info.project,
+               version_info.version,
+               version_info.git_sha,
+               version_info.build_utc,
+               version_info.compiler_id,
+               version_info.compiler_ver);
+}
+
+} // namespace tskv::cmd

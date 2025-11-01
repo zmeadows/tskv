@@ -1,5 +1,39 @@
 cmake_minimum_required(VERSION 3.28)
-project(tskv LANGUAGES CXX)
+project(
+  tskv
+  VERSION 0.1.0
+  LANGUAGES CXX)
+
+# Build metadata
+# Git rev (short), fallback to "nogit" if not a git checkout
+execute_process(
+  COMMAND git -C "${CMAKE_SOURCE_DIR}" rev-parse --short=12 HEAD
+  RESULT_VARIABLE TSKV_GIT_RESULT
+  OUTPUT_VARIABLE TSKV_GIT_SHA
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT TSKV_GIT_RESULT EQUAL 0 OR TSKV_GIT_SHA STREQUAL "")
+  set(TSKV_GIT_SHA "nogit")
+endif()
+
+# UTC timestamp
+string(TIMESTAMP TSKV_BUILD_UTC "%Y-%m-%dT%H:%M:%SZ" UTC)
+
+# Expose for subdirs
+set(TSKV_PROJECT_VERSION
+    "${PROJECT_VERSION}"
+    CACHE STRING "" FORCE)
+set(TSKV_GIT_SHA
+    "${TSKV_GIT_SHA}"
+    CACHE STRING "" FORCE)
+set(TSKV_BUILD_UTC
+    "${TSKV_BUILD_UTC}"
+    CACHE STRING "" FORCE)
+set(TSKV_COMPILER_ID
+    "${CMAKE_CXX_COMPILER_ID}"
+    CACHE STRING "" FORCE)
+set(TSKV_COMPILER_VER
+    "${CMAKE_CXX_COMPILER_VERSION}"
+    CACHE STRING "" FORCE)
 
 include(cmake/ToolchainChecks.cmake)
 

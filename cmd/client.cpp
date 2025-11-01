@@ -9,6 +9,7 @@
 import common.enum_traits;
 import storage.wal;
 import cmd.args;
+import cmd.version;
 
 namespace tc  = tskv::common;
 namespace ts  = tskv::storage;
@@ -62,10 +63,6 @@ struct ClientConfig {
   }
 };
 
-static void print_version()
-{
-}
-
 int main_(int argc, char** argv)
 {
   cmd::CmdLineArgs args(argc, argv);
@@ -81,7 +78,7 @@ int main_(int argc, char** argv)
   }
 
   if (args.pop_flag("version")) {
-    print_version();
+    cmd::print_version();
     return EXIT_SUCCESS;
   }
 

@@ -10,14 +10,29 @@ add_executable(tskv_client client.cpp)
 set_target_properties(tskv_client PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/cmd"
                                              OUTPUT_NAME "client")
 
-# Shared CLI modules (args.ixx + optional peers live next to the mains)
+set(TSKV_VERSION_IXX "${CMAKE_CURRENT_BINARY_DIR}/version.ixx")
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.ixx.in" "${TSKV_VERSION_IXX}" @ONLY)
+
 add_library(tskv_cmd)
+
+# Shared CLI modules (args.ixx + optional peers live next to the mains)
 target_sources(
   tskv_cmd
   PUBLIC FILE_SET CXX_MODULES FILES args.ixx
          # version.ixx     # (optional) list any additional cmd.* modules here
   PUBLIC FILE_SET HEADERS FILES macros.hpp # (optional) makes the header visible to IDEs/exports
 )
+
+# Register the generated version.ixx module
+target_sources(
+  tskv_cmd
+  PUBLIC FILE_SET
+         CXX_MODULES
+         BASE_DIRS
+         "${CMAKE_CURRENT_BINARY_DIR}"
+         FILES
+         "${TSKV_VERSION_IXX}")
 
 # CRITICAL: cmd/args.ixx imports common.enum_traits
 # Link the provider target so CMake knows the BMI dependency graph.

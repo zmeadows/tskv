@@ -1,0 +1,17 @@
+# Global fallback flags (used when a file isn't in compile_commands.json)
+CompileFlags:
+  Add: [-std=c++23]
+
+---
+# Treat module interface files as C++ modules
+If:
+  PathMatch: '.*\.(ixx|cppm|mpp)$'
+CompileFlags:
+  Add: [-xc++-module]
+
+---
+# Treat template module files (*.ixx.in) as modules too
+If:
+  PathMatch: '.*\.ixx\.in$'
+CompileFlags:
+  Add: [-std=c++23, -xc++-module]
