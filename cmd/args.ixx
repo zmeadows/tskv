@@ -4,6 +4,7 @@ module;
 #include <expected>
 #include <filesystem>
 #include <format>
+#include <iostream>
 #include <map>
 #include <set>
 #include <string>
@@ -85,7 +86,6 @@ public:
 
   [[nodiscard]] bool has_key(std::string_view key) const noexcept { return _kvs.contains(key); }
 
-  // TODO[@zmeadows][P0]: move type-specific parsing & error-handling into overloaded template function
   template <typename V> std::expected<V, std::string> pop_kv(std::string_view key)
   {
     auto kit = _kvs.find(key);
@@ -138,10 +138,23 @@ public:
 
   [[nodiscard]] bool pop_flag(std::string_view flag) noexcept { return _flags.erase(flag) != 0; }
 
-  void print_unused_arg_warning()
+  std::expected<void, std::string> detect_unused_args()
   {
-    // TODO[@zmeadows][P0]: implement
-    return;
+    if (_kvs.empty() && _flags.empty()) {
+      return {};
+    }
+
+    std::string errmsg = "unused_cli_args: ";
+
+    for (const auto& [k, v] : _kvs) {
+      errmsg.append(std::format("--{}={} ", k, v));
+    }
+
+    for (const auto& f : _flags) {
+      errmsg.append(std::format("--{} ", f));
+    }
+
+    return std::unexpected(errmsg);
   }
 };
 

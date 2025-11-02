@@ -7,8 +7,6 @@
 
 #include "macros.hpp"
 
-// TODO[@zmeadows][P0]: add --version support via CMake?
-
 namespace fs = std::filesystem;
 
 import common.enum_traits;
@@ -131,7 +129,14 @@ int main_(int argc, char** argv)
     return EXIT_FAILURE;
   }
 
-  if (args.pop_flag("dry-run")) {
+  const bool dry_run = args.pop_flag("dry-run");
+
+  if (auto res = args.detect_unused_args(); !res) {
+    print_error(res.error());
+    return EXIT_FAILURE;
+  }
+
+  if (dry_run) {
     config->print();
     return EXIT_SUCCESS;
   }

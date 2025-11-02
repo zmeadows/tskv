@@ -65,12 +65,17 @@ struct ClientConfig {
   }
 };
 
+static void print_error(std::string_view msg)
+{
+  std::println(std::cerr, "tskv client ERR :: {}", msg);
+}
+
 int main_(int argc, char** argv)
 {
   cmd::CmdLineArgs args(argc, argv);
 
   if (auto res = args.parse(); !res) {
-    std::cerr << "CLI parse error: \n\t" << res.error() << '\n';
+    print_error(res.error());
     return EXIT_FAILURE;
   }
 
@@ -86,11 +91,18 @@ int main_(int argc, char** argv)
 
   const auto config = ClientConfig::from_cli(args);
   if (!config) {
-    std::println(std::cerr, "{}", config.error());
+    print_error(config.error());
     return EXIT_FAILURE;
   }
 
-  if (args.pop_flag("dry-run")) {
+  const bool dry_run = args.pop_flag("dry-run");
+
+  if (auto res = args.detect_unused_args(); !res) {
+    print_error(res.error());
+    return EXIT_FAILURE;
+  }
+
+  if (dry_run) {
     config->print();
     return EXIT_SUCCESS;
   }
