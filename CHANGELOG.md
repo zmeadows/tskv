@@ -1,10 +1,6 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog] and this project adheres to [Semantic Versioning].
-
-## [v0.1.0] - 2025-XX-YY
+## [v0.1.0] - 2025-11-02
 ### Added
 - Initial repository bootstrap.
 - Top-level `README.md` with summary, goals, roadmap, and high-level architecture.
@@ -12,7 +8,7 @@ The format is based on [Keep a Changelog] and this project adheres to [Semantic 
 - `CHANGELOG.md` initialized.
 - `LICENSE` (MIT).
 - `.gitignore` for C++/CMake/build artifacts.
+- client/server program stubs with CLI arg parsing.
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.1.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
-

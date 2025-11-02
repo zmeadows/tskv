@@ -16,7 +16,7 @@
 - **Compaction:** merge overlapping SSTables, keep newest versions, drop obsolete ones; install via **manifest** with durable rename.
 
 ## ⚑ Roadmap (high-level)
-- [ ] v0.1 — Bootstrap: README, roadmap, PR template
+- [x] v0.1 — Bootstrap: README, CLI, PR template
 - [ ] v0.2 — Non-blocking TCP + epoll echo; clean shutdown
 - [ ] v0.3 — Framing: header + length; PING/PONG
 - [ ] v0.4 — Connection state: RX/TX rings; backpressure cap

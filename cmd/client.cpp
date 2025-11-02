@@ -1,19 +1,124 @@
-#include <cstdio>
-#include <cstring>
+#include <cstdint>
+#include <cstdlib>
+#include <expected>
+#include <iostream>
+#include <print>
 
-static int print_help() {
-  std::puts("tskv client — usage:\n"
-            "  client [--help]\n"
-            "\n"
-            "Binary RPC verbs: PUT | GET | SCAN (Step 0 stub).");
-  return 0;
+#include "macros.hpp"
+
+import common.enum_traits;
+import storage.wal;
+import cmd.args;
+import cmd.version;
+import net.utils;
+
+namespace tc  = tskv::common;
+namespace ts  = tskv::storage;
+namespace tn  = tskv::net;
+namespace cmd = tskv::cmd;
+
+static void print_help()
+{
+  using std::println;
+
+  println("tskv client — usage:");
+  println("  client [--host <ip|name>] [--port <1-65535>] [--timeout-ms <n>]");
+  println("         [--version] [--help] [--dry-run]");
+  println("");
+
+  println("Options:");
+  println("  --host <ip|name>           Bind address (default: 127.0.0.1)");
+  println("  --port <n>                 TCP port (default: 7070)");
+  println("  --timeout-ms <n>           Timeout [milliseconds] (default: 2000)");
+  println("  --dry-run                  Print CLI args and exit");
+  println("  --version                  Print version and exit");
+  println("  --help                     Show this help and exit");
 }
 
-int main(int argc, char **argv) {
-  if (argc > 1 && (std::strcmp(argv[1], "--help") == 0 ||
-                   std::strcmp(argv[1], "-h") == 0)) {
-    return print_help();
+struct ClientConfig {
+  std::string host       = "127.0.0.1";
+  uint16_t    port       = 7070;
+  uint32_t    timeout_ms = 2000;
+
+  static std::expected<ClientConfig, std::string> from_cli(cmd::CmdLineArgs& args)
+  {
+    ClientConfig config;
+
+    // 1) Parse
+    TRY_ARG_ASSIGN(args, config.host, "host");
+    TRY_ARG_ASSIGN(args, config.port, "port");
+    TRY_ARG_ASSIGN(args, config.timeout_ms, "timeout-ms");
+
+    // 2) Validate
+    if (!tn::is_valid_port(config.port)) {
+      return std::unexpected(std::format("invalid_port: expected 1..65535 (got {})", config.port));
+    }
+
+    return config;
   }
-  // Default behavior for Step 0: just print help and exit success.
-  return print_help();
+
+  void print() const
+  {
+    std::print("tsk client CFG");
+    std::print(" host={}", this->host);
+    std::print(" port={}", this->port);
+    std::print(" timeout-ms={}", this->timeout_ms);
+    std::print("\n");
+  }
+};
+
+static void print_error(std::string_view msg)
+{
+  std::println(std::cerr, "tskv client ERR :: {}", msg);
+}
+
+int main_(int argc, char** argv)
+{
+  cmd::CmdLineArgs args(argc, argv);
+
+  if (auto res = args.parse(); !res) {
+    print_error(res.error());
+    return EXIT_FAILURE;
+  }
+
+  if (args.pop_flag("help")) {
+    print_help();
+    return EXIT_SUCCESS;
+  }
+
+  if (args.pop_flag("version")) {
+    cmd::print_version();
+    return EXIT_SUCCESS;
+  }
+
+  const auto config = ClientConfig::from_cli(args);
+  if (!config) {
+    print_error(config.error());
+    return EXIT_FAILURE;
+  }
+
+  const bool dry_run = args.pop_flag("dry-run");
+
+  if (auto res = args.detect_unused_args(); !res) {
+    print_error(res.error());
+    return EXIT_FAILURE;
+  }
+
+  if (dry_run) {
+    config->print();
+    return EXIT_SUCCESS;
+  }
+
+  return EXIT_SUCCESS;
+}
+
+int main(int argc, char** argv)
+{
+  try {
+    return main_(argc, argv);
+  }
+  catch (const std::exception& e) {
+    std::cerr << e.what() << "\n";
+    return EXIT_FAILURE;
+  }
 }

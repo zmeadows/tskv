@@ -1,0 +1,24 @@
+---
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  cert-*,
+  performance-*,
+  portability-*,
+  modernize-use-override,
+  modernize-use-nodiscard,
+  readability-suspicious-call-argument,
+  readability-suspicious-string-compare,
+  cppcoreguidelines-narrowing-conversions,
+  -readability-identifier-length,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-reserved-identifier
+
+HeaderFilterRegex: '(^|.*[\\/])(cmd|src|tests)([\\/].*)?$'
+FormatStyle: none # don't auto-format in tidy runs
+
+CheckOptions:
+  - { key: modernize-use-nodiscard.ReplacementString, value: "[[nodiscard]]" }
+  - { key: readability-identifier-length.MinimumParameterNameLength, value: 1 }
