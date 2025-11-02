@@ -21,13 +21,14 @@ static void print_help()
 
   println("tskv client — usage:");
   println("  client [--host <ip|name>] [--port <1-65535>] [--timeout-ms <n>]");
-  println("         [--version] [--help]");
+  println("         [--version] [--help] [--dry-run]");
   println("");
 
   println("Options:");
   println("  --host <ip|name>           Bind address (default: 127.0.0.1)");
   println("  --port <n>                 TCP port (default: 7070)");
   println("  --timeout-ms <n>           Timeout [milliseconds] (default: 2000)");
+  println("  --dry-run                  Print CLI args and exit");
   println("  --version                  Print version and exit");
   println("  --help                     Show this help and exit");
 }
@@ -89,7 +90,10 @@ int main_(int argc, char** argv)
     return EXIT_FAILURE;
   }
 
-  config->print();
+  if (args.pop_flag("dry-run")) {
+    config->print();
+    return EXIT_SUCCESS;
+  }
 
   return EXIT_SUCCESS;
 }

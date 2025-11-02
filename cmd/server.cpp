@@ -28,7 +28,7 @@ static void print_help()
   println("tskv server — usage:");
   println("  server [--host <ip|name>] [--port <1-65535>] [--data-dir <path>]");
   println("         [--wal-sync <append|fdatasync>] [--memtable-bytes <n>]");
-  println("         [--max-connections <n>] [--version] [--help]");
+  println("         [--max-connections <n>] [--version] [--help] [--dry-run]");
   println("");
 
   println("Options:");
@@ -38,6 +38,7 @@ static void print_help()
   println("  --wal-sync <mode>          WAL durability: append | fdatasync (default: append)");
   println("  --memtable-bytes <n>       Target memtable size in bytes (default: 67108864)");
   println("  --max-connections <n>      Max concurrent connections (default: 1024)");
+  println("  --dry-run                  Print CLI args and exit");
   println("  --version                  Print version and exit");
   println("  --help                     Show this help and exit");
 }
@@ -130,7 +131,10 @@ int main_(int argc, char** argv)
     return EXIT_FAILURE;
   }
 
-  config->print();
+  if (args.pop_flag("dry-run")) {
+    config->print();
+    return EXIT_SUCCESS;
+  }
 
   return EXIT_SUCCESS;
 }

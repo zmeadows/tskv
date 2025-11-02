@@ -34,12 +34,9 @@ target_sources(
          FILES
          "${TSKV_VERSION_IXX}")
 
-# CRITICAL: cmd/args.ixx imports common.enum_traits
-# Link the provider target so CMake knows the BMI dependency graph.
 target_link_libraries(
   tskv_cmd
-  PRIVATE tskv_common # <-- added: provides common.enum_traits BMI
-          tskv_storage)
+  PRIVATE tskv_common tskv_storage)
 
 target_link_libraries(
   tskv_server
