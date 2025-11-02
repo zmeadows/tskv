@@ -14,9 +14,11 @@ import common.files;
 import storage.wal;
 import cmd.args;
 import cmd.version;
+import net.utils;
 
 namespace tc  = tskv::common;
 namespace ts  = tskv::storage;
+namespace tn  = tskv::net;
 namespace cmd = tskv::cmd;
 
 static void print_help()
@@ -62,7 +64,7 @@ struct ServerConfig {
     TRY_ARG_ASSIGN(args, config.max_connections, "max-connections");
 
     // 2) Validate
-    if (config.port < 1 || config.port > 65535) {
+    if (!tn::is_valid_port(config.port)) {
       return std::unexpected(std::format("invalid_port: expected 1..65535 (got {})", config.port));
     }
 

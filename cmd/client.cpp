@@ -10,9 +10,11 @@ import common.enum_traits;
 import storage.wal;
 import cmd.args;
 import cmd.version;
+import net.utils;
 
 namespace tc  = tskv::common;
 namespace ts  = tskv::storage;
+namespace tn  = tskv::net;
 namespace cmd = tskv::cmd;
 
 static void print_help()
@@ -48,7 +50,7 @@ struct ClientConfig {
     TRY_ARG_ASSIGN(args, config.timeout_ms, "timeout-ms");
 
     // 2) Validate
-    if (config.port < 1 || config.port > 65535) {
+    if (!tn::is_valid_port(config.port)) {
       return std::unexpected(std::format("invalid_port: expected 1..65535 (got {})", config.port));
     }
 

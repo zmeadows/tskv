@@ -40,8 +40,8 @@ target_link_libraries(
 
 target_link_libraries(
   tskv_server
-  PRIVATE tskv_cmd tskv_common tskv_storage)
+  PRIVATE tskv_cmd tskv_common tskv_storage tskv_net)
 
 target_link_libraries(
   tskv_client
-  PRIVATE tskv_cmd tskv_common tskv_storage)
+  PRIVATE tskv_cmd tskv_common tskv_storage tskv_net)
