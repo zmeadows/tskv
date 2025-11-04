@@ -114,7 +114,7 @@ public:
       if (auto o_policy = tc::from_string<ts::WALSyncPolicy>(sv); o_policy.has_value()) {
         return *o_policy;
       }
-      return std::unexpected(errmsg());
+      return std::unexpected(std::format("invalid_wal_sync: unrecognized policy \"{}\"", sv));
     }
     else if constexpr (std::is_integral_v<V> && !std::is_same_v<V, bool>) {
       const char* first = sv.data();

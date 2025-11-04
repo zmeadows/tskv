@@ -59,7 +59,7 @@ struct ClientConfig {
 
   void print() const
   {
-    std::print("tsk client CFG");
+    std::print("tskv client CFG ::");
     std::print(" host={}", this->host);
     std::print(" port={}", this->port);
     std::print(" timeout-ms={}", this->timeout_ms);
