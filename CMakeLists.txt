@@ -5,7 +5,6 @@ project(
   LANGUAGES CXX)
 
 # Build metadata
-# Git rev (short), fallback to "nogit" if not a git checkout
 execute_process(
   COMMAND git -C "${CMAKE_SOURCE_DIR}" rev-parse --short=12 HEAD
   RESULT_VARIABLE TSKV_GIT_RESULT
