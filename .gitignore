@@ -82,3 +82,7 @@ flamegraph.svg
 *.tar
 *.tar.gz
 *.tgz
+
+.cmake-format.yaml
+.prettier*
+.yamllint
