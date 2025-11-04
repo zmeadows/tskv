@@ -40,6 +40,7 @@ include(cmake/ToolchainChecks.cmake)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE
@@ -77,8 +78,6 @@ if(CMAKE_EXPORT_COMPILE_COMMANDS)
     COMMENT "Symlinking compile_commands.json to project root"
     VERBATIM)
 endif()
-
-enable_testing()
 
 add_subdirectory(src/common)
 add_subdirectory(src/net)

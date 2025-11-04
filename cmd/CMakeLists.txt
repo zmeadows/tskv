@@ -1,8 +1,5 @@
-#
-# cmd/CMakeLists.txt (after) — ensure BMI order for cmd.args by linking its providers
-#
-
 add_executable(tskv_server server.cpp)
+
 set_target_properties(tskv_server PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/cmd"
                                              OUTPUT_NAME "server")
 
