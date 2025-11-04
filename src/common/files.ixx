@@ -12,7 +12,7 @@ export module common.files;
 
 namespace fs = std::filesystem;
 
-static std::string random_probe_suffix()
+std::string random_probe_suffix()
 {
   std::array<unsigned char, 16> bytes{};
   {
@@ -29,7 +29,7 @@ static std::string random_probe_suffix()
       }
       return std::mt19937_64{seed};
     }());
-    // Fill from RNG
+
     for (size_t i = 0; i < bytes.size(); i += 8) {
       uint64_t r = gen();
       for (int j = 0; j < 8; ++j)
