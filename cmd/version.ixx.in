@@ -16,7 +16,6 @@ struct VersionInfo {
   std::string_view compiler_ver;
 };
 
-// Single source of truth for version/build metadata.
 inline constexpr VersionInfo version_info{"tskv",
                                           "@TSKV_PROJECT_VERSION@",
                                           "@TSKV_GIT_SHA@",
@@ -24,7 +23,6 @@ inline constexpr VersionInfo version_info{"tskv",
                                           "@TSKV_COMPILER_ID@",
                                           "@TSKV_COMPILER_VER@"};
 
-// Prints the same one-line summary to stdout.
 inline void print_version()
 {
   std::println("{} {} (git {}) built {} with {} {}",

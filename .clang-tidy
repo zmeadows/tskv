@@ -17,7 +17,7 @@ Checks: >
   -bugprone-reserved-identifier
 
 HeaderFilterRegex: '(^|.*[\\/])(cmd|src|tests)([\\/].*)?$'
-FormatStyle: none # don't auto-format in tidy runs
+FormatStyle: none # keep clang-format separate
 
 CheckOptions:
   - { key: modernize-use-nodiscard.ReplacementString, value: "[[nodiscard]]" }

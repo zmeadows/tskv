@@ -1,5 +1,7 @@
-# PR Title (Conventional Commits)
-<!-- e.g., feat(net): add epoll reactor -->
+<!--
+Reminder: Format PR Title with "Conventional Commits" style.
+e.g., feat(net): add epoll reactor
+-->
 
 **What / Why**
 One sentence: what changed and why.

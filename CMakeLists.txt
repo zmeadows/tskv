@@ -5,7 +5,6 @@ project(
   LANGUAGES CXX)
 
 # Build metadata
-# Git rev (short), fallback to "nogit" if not a git checkout
 execute_process(
   COMMAND git -C "${CMAKE_SOURCE_DIR}" rev-parse --short=12 HEAD
   RESULT_VARIABLE TSKV_GIT_RESULT
@@ -37,9 +36,12 @@ set(TSKV_COMPILER_VER
 
 include(cmake/ToolchainChecks.cmake)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE
@@ -77,8 +79,6 @@ if(CMAKE_EXPORT_COMPILE_COMMANDS)
     COMMENT "Symlinking compile_commands.json to project root"
     VERBATIM)
 endif()
-
-enable_testing()
 
 add_subdirectory(src/common)
 add_subdirectory(src/net)

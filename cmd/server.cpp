@@ -90,7 +90,7 @@ struct ServerConfig {
 
   void print() const
   {
-    std::print("tsk server CFG");
+    std::print("tskv server CFG ::");
     std::print(" host={}", this->host);
     std::print(" port={}", this->port);
     std::print(" data-dir={}", this->data_dir.string());

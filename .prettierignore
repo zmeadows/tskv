@@ -1,8 +1,0 @@
-build/
-artifacts/
-dist/
-out/
-
-*.hpp
-*.cpp
-*.inl

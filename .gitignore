@@ -82,3 +82,8 @@ flamegraph.svg
 *.tar
 *.tar.gz
 *.tgz
+
+# --- User tool config files ---
+.cmake-format.yaml
+.prettier*
+.yamllint
