@@ -4,7 +4,8 @@ set_property(GLOBAL PROPERTY TIMEOUT 30)
 
 # Helper(s) shared by subfolders
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(AddCliTest) # defines add_cli_test()
+include(AddCliTest)
+include(doctest)
 
 # Split by test “type” for clean labels & easy CI targeting
 add_subdirectory(cli)
