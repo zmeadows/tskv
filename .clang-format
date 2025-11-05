@@ -35,6 +35,7 @@ PPIndentWidth: 2
 # 3) Spacing & wrapping
 # -----------------------------------------------------------------------------
 BreakBeforeBraces: Stroustrup
+BreakTemplateDeclarations: Yes
 SpaceBeforeParens: ControlStatements
 SpacesInAngles: Never
 SpaceBeforeInheritanceColon: true

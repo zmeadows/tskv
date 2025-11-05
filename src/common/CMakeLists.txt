@@ -5,7 +5,11 @@ target_sources(
   PUBLIC FILE_SET
          CXX_MODULES
          FILES
-         logging.ixx
-         files.ixx
          enum_traits.ixx
+         files.ixx
+         logging.ixx
+         metrics.ixx
+         string_literal.ixx
+         key_set.ixx
+         key_array.ixx
   PUBLIC FILE_SET HEADERS FILES defer.hpp)

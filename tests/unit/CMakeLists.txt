@@ -1,5 +1,9 @@
 add_executable(tskv_unit_tests
-  unit_smoke.cpp
+  unit_main.cpp
+  common/test_key_set.cpp
+  common/test_key_array.cpp
+  common/test_string_literal.cpp
+  net/test_utils.cpp
 )
 
 set(TSKV_DOCTEST_DIR "${CMAKE_SOURCE_DIR}/tests/third_party/doctest")
