@@ -66,6 +66,9 @@ public:
 
 void AdditiveGaugeShard::sync(gauge_t& global, const AdditiveGaugeShard& shard)
 {
+  // global tracks the sum of last_synced_ per shard;
+  // thread sync adjusts global by the difference between current_ and last_synced_.
+
   if (shard.current_ >= shard.last_synced_) {
     const auto delta = shard.current_ - shard.last_synced_;
     global += delta;
