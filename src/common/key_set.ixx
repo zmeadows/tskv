@@ -11,6 +11,7 @@ namespace tc = tskv::common;
 
 export namespace tskv::common {
 
+// TODO[@zmeadows][P2]: detect duplicate keys
 template <tc::string_literal... Keys>
 struct key_set {
   static constexpr std::size_t size = sizeof...(Keys);

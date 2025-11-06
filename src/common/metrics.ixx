@@ -11,58 +11,53 @@ import common.key_array;
 
 namespace tc = tskv::common;
 
+export namespace tskv::common::metrics {
+
+using Counter = std::uint64_t;
+using Gauge   = std::uint64_t;
+
+} // namespace tskv::common::metrics
+
 namespace detail {
 
-// clang-format off
-using CounterKeysST = tc::key_set<
-  "testc.foo_st"
->;
+using tskv::common::metrics::Counter;
+using tskv::common::metrics::Gauge;
 
-using CounterKeysMT = tc::key_set<
-  "testc.foo_mt"
->;
-using AdditiveGaugeKeysST = tc::key_set<
-  "testg.foo_st"
->;
+using CounterKeysST = tc::key_set<"testc.foo_st">;
+using CounterKeysMT = tc::key_set<"testc.foo_mt">;
+using CounterKeys   = tc::key_set_union_t<CounterKeysST, CounterKeysMT>;
 
-using AdditiveGaugeKeysMT = tc::key_set<
-  "testg.bar_mt"
->;
-// clang-format on
-
-using CounterKeys       = tc::key_set_union_t<CounterKeysST, CounterKeysMT>;
-using AdditiveGaugeKeys = tc::key_set_union_t<AdditiveGaugeKeysST, AdditiveGaugeKeysMT>;
-
-template <tc::string_literal K>
-consteval bool is_single_threaded_metric()
-{
-  return CounterKeysST::contains<K>() || AdditiveGaugeKeysST::contains<K>();
-}
+using AdditiveGaugeKeysST = tc::key_set<"testg.foo_st">;
+using AdditiveGaugeKeysMT = tc::key_set<"testg.foo_mt">;
+using AdditiveGaugeKeys   = tc::key_set_union_t<AdditiveGaugeKeysST, AdditiveGaugeKeysMT>;
 
 struct AdditiveGaugeShard {
-  uint64_t current     = 0;
-  uint64_t last_synced = 0;
+private:
+  Gauge current_     = 0;
+  Gauge last_synced_ = 0;
 
-  static void sync(std::uint64_t& global, const AdditiveGaugeShard& shard)
+public:
+  static void sync(Gauge& global, const AdditiveGaugeShard& shard)
   {
-    if (shard.current >= shard.last_synced) {
-      const auto delta = shard.current - shard.last_synced;
+    if (shard.current_ >= shard.last_synced_) {
+      const auto delta = shard.current_ - shard.last_synced_;
       global += delta;
     }
     else {
-      const auto delta = shard.last_synced - shard.last_synced;
+      const auto delta = shard.last_synced_ - shard.current_;
       global -= delta;
     }
   }
 
-  void post_sync() { this->last_synced = this->current; }
-  void set(std::uint64_t n) { this->current = n; }
+  void  post_sync() { last_synced_ = current_; }
+  void  set(Gauge val) { current_ = val; }
+  Gauge current() { return current_; }
 };
 
 void sync_thread(std::chrono::steady_clock::duration min_interval);
 
 struct ThreadLocalMetrics {
-  tc::key_array<uint64_t, CounterKeysMT>                 counters{};
+  tc::key_array<Counter, CounterKeysMT>                  counters{};
   tc::key_array<AdditiveGaugeShard, AdditiveGaugeKeysMT> additive_gauges{};
 
   ThreadLocalMetrics() = default;
@@ -95,8 +90,8 @@ inline ThreadLocalMetrics& local_metrics()
 }
 
 struct GlobalMetrics {
-  tc::key_array<uint64_t, CounterKeys>       counters        = {};
-  tc::key_array<uint64_t, AdditiveGaugeKeys> additive_gauges = {};
+  tc::key_array<Counter, CounterKeys>     counters        = {};
+  tc::key_array<Gauge, AdditiveGaugeKeys> additive_gauges = {};
 
   void sync_with(const ThreadLocalMetrics& local)
   {
@@ -146,13 +141,7 @@ template <auto>
 inline constexpr bool dependent_false = false;
 
 template <tc::string_literal K>
-consteval bool is_multi_threaded_metric()
-{
-  return CounterKeysMT::contains<K>() || AdditiveGaugeKeysMT::contains<K>();
-}
-
-template <tc::string_literal K>
-void add_counter(uint64_t n) noexcept
+void add_counter(Counter n) noexcept
 {
   if constexpr (CounterKeysMT::contains<K>()) {
     local_metrics().counters.get<K>() += n;
@@ -166,7 +155,7 @@ void add_counter(uint64_t n) noexcept
 }
 
 template <tc::string_literal K>
-void set_gauge(uint64_t n) noexcept
+void set_gauge(Gauge n) noexcept
 {
   if constexpr (AdditiveGaugeKeysMT::contains<K>()) {
     local_metrics().additive_gauges.get<K>().set(n);
@@ -175,7 +164,7 @@ void set_gauge(uint64_t n) noexcept
     global_metrics.additive_gauges.get<K>() = n;
   }
   else {
-    static_assert(dependent_false<K>, "Unrecognized counter key.");
+    static_assert(dependent_false<K>, "Unrecognized gauge key.");
   }
 }
 
@@ -183,13 +172,18 @@ void set_gauge(uint64_t n) noexcept
 
 export namespace tskv::common::metrics {
 
+inline void global_reset()
+{
+  detail::global_metrics = detail::GlobalMetrics();
+}
+
 inline void sync_thread(std::chrono::steady_clock::duration min_interval = std::chrono::seconds{1})
 {
   detail::sync_thread(min_interval);
 }
 
 template <tc::string_literal K>
-inline void add_counter(uint64_t n) noexcept
+inline void add_counter(Counter n) noexcept
 {
   detail::add_counter<K>(n);
 }
@@ -201,20 +195,21 @@ inline void inc_counter() noexcept
 }
 
 template <tc::string_literal K>
-inline std::uint64_t get_counter() noexcept
+inline Counter get_counter() noexcept
 {
   return detail::global_metrics.counters.get<K>();
 }
 
 template <tc::string_literal K>
-inline void set_gauge(uint64_t n) noexcept
+inline void set_gauge(Gauge n) noexcept
 {
   detail::set_gauge<K>(n);
 }
 
-inline void global_reset()
+template <tc::string_literal K>
+inline Gauge get_gauge() noexcept
 {
-  detail::global_metrics = detail::GlobalMetrics();
+  return detail::global_metrics.additive_gauges.get<K>();
 }
 
 } // namespace tskv::common::metrics

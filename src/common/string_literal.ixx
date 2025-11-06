@@ -20,7 +20,11 @@ struct string_literal {
     return std::string_view{data, N - 1}; // drop trailing '\0'
   }
 
-  constexpr auto operator<=>(string_literal const&) const = default;
+  template <std::size_t M>
+  friend consteval bool operator==(const string_literal<N>& a, const string_literal<M>& b)
+  {
+    return N == M && std::string_view{a} == std::string_view{b};
+  };
 };
 
 } // namespace tskv::common
