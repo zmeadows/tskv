@@ -98,7 +98,7 @@ struct ThreadLocalMetrics {
 
 void ThreadLocalMetrics::post_sync()
 {
-  counters = {}; // zero every counter
+  counters.data.fill(0);
 
   for (AdditiveGaugeShard& shard : additive_gauges.data) {
     shard.post_sync();
@@ -116,8 +116,8 @@ inline ThreadLocalMetrics& local_metrics()
 //==============================================================================
 
 struct GlobalMetrics {
-  tc::key_array<counter_t, CounterKeys>     counters        = {};
-  tc::key_array<gauge_t, AdditiveGaugeKeys> additive_gauges = {};
+  tc::key_array<counter_t, CounterKeys>     counters{};
+  tc::key_array<gauge_t, AdditiveGaugeKeys> additive_gauges{};
 
   void sync_with(const ThreadLocalMetrics& local);
 };
