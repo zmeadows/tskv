@@ -12,4 +12,4 @@ target_sources(
          string_literal.ixx
          key_set.ixx
          key_array.ixx
-  PUBLIC FILE_SET HEADERS FILES defer.hpp)
+  PUBLIC FILE_SET HEADERS FILES defer.hpp macro_utils.hpp)

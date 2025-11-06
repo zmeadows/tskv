@@ -24,8 +24,7 @@ std::string random_probe_suffix()
         std::random_device rd;
         seed ^= (static_cast<uint64_t>(rd()) << 32) ^ rd();
       }
-      // NOLINTNEXTLINE(bugprone-empty-catch)
-      catch (...) {
+      catch (...) { // NOLINT(bugprone-empty-catch)
       }
       return std::mt19937_64{seed};
     }());

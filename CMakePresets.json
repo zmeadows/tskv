@@ -15,7 +15,9 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++"
+        "CMAKE_CXX_COMPILER": "clang++",
+        "TSKV_USE_TSAN": false,
+        "TSKV_USE_ABSAN_UBSAN": true
       }
     }
   ],

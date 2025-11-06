@@ -44,17 +44,17 @@ TEST_SUITE("common.metrics")
     auto worker = [&] {
       start_barrier.arrive_and_wait();
 
-      for (std::size_t i = 0; i < niters; ++i) {
+      for (metrics::counter_t i = 0; i < niters; ++i) {
         metrics::add_counter<"testc.foo_mt">(1);
 
         // force some sync/load on global_metrics, exercise the mutex
         if (i % 10 == 0) {
-          metrics::sync_thread(0ms);
+          metrics::flush_thread(0ms);
         }
       }
 
       // final flush for this thread
-      metrics::sync_thread(0ms);
+      metrics::flush_thread(0ms);
     };
 
     std::vector<std::jthread> threads;
@@ -97,13 +97,13 @@ TEST_SUITE("common.metrics")
   {
     metrics::global_reset();
 
-    std::array<std::uint64_t, 100000> ran_gauge_values;
+    std::array<metrics::gauge_t, 100000> ran_gauge_values;
     {
       std::mt19937_64 rng(0xDEADBEEF); // NOLINT
 
-      constexpr std::uint64_t MAX_U64 = std::numeric_limits<std::uint64_t>::max();
+      constexpr metrics::gauge_t MAX_U64 = std::numeric_limits<metrics::gauge_t>::max();
 
-      std::uniform_int_distribution<std::uint64_t> dist(0, MAX_U64);
+      std::uniform_int_distribution<metrics::gauge_t> dist(0, MAX_U64);
       std::ranges::generate(ran_gauge_values, [&] { return dist(rng); });
 
       ran_gauge_values.front() = 0;
@@ -113,22 +113,22 @@ TEST_SUITE("common.metrics")
     constexpr std::size_t nthreads = 4;
     std::barrier          start_barrier(nthreads + 1);
 
-    constexpr metrics::Gauge final_gauge_val = 123;
+    constexpr metrics::gauge_t final_gauge_val = 123;
 
     auto worker = [&] {
       start_barrier.arrive_and_wait();
 
       size_t i = 0;
-      for (const std::uint64_t n : ran_gauge_values) {
+      for (const metrics::gauge_t n : ran_gauge_values) {
         metrics::set_gauge<"testg.foo_mt">(n);
 
         if (i++ % 10 == 0) {
-          metrics::sync_thread(0ms);
+          metrics::flush_thread(0ms);
         }
       }
 
       metrics::set_gauge<"testg.foo_mt">(final_gauge_val);
-      metrics::sync_thread(0ms);
+      metrics::flush_thread(0ms);
     };
 
     std::vector<std::jthread> threads;
