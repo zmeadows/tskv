@@ -17,8 +17,7 @@ add_library(tskv_cmd)
 target_sources(
   tskv_cmd
   PUBLIC FILE_SET CXX_MODULES FILES args.ixx
-         # version.ixx     # (optional) list any additional cmd.* modules here
-  PUBLIC FILE_SET HEADERS FILES macros.hpp # (optional) makes the header visible to IDEs/exports
+  PUBLIC FILE_SET HEADERS FILES macros.hpp
 )
 
 # Register the generated version.ixx module

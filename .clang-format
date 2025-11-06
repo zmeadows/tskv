@@ -35,6 +35,7 @@ PPIndentWidth: 2
 # 3) Spacing & wrapping
 # -----------------------------------------------------------------------------
 BreakBeforeBraces: Stroustrup
+BreakTemplateDeclarations: Yes
 SpaceBeforeParens: ControlStatements
 SpacesInAngles: Never
 SpaceBeforeInheritanceColon: true
@@ -45,7 +46,7 @@ ConstructorInitializerIndentWidth: 2
 # -----------------------------------------------------------------------------
 # 4) Alignment (tasteful, not overbearing)
 # -----------------------------------------------------------------------------
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: DontAlign
 AlignOperands: Align
 AlignConsecutiveAssignments: Consecutive
 AlignConsecutiveDeclarations: Consecutive
