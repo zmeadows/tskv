@@ -7,7 +7,7 @@ namespace tc = tskv::common;
 
 TEST_SUITE("common.string_literal")
 {
-  TEST_CASE("string_literal.basic_properties")
+  TEST_CASE("basic")
   {
     constexpr tc::string_literal hello{"hello"};
 

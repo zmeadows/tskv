@@ -46,7 +46,7 @@ ConstructorInitializerIndentWidth: 2
 # -----------------------------------------------------------------------------
 # 4) Alignment (tasteful, not overbearing)
 # -----------------------------------------------------------------------------
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: DontAlign
 AlignOperands: Align
 AlignConsecutiveAssignments: Consecutive
 AlignConsecutiveDeclarations: Consecutive

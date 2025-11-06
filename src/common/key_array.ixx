@@ -1,6 +1,8 @@
 module;
 
 #include <array>
+#include <concepts>
+#include <functional>
 #include <string_view>
 
 export module common.key_array;
@@ -37,6 +39,18 @@ struct key_array<T, key_set<Keys...>> {
     return data[idx];
   }
 
+  template <typename F>
+  constexpr void for_each_key(F&& f) &
+  {
+    (f.template operator()<Keys>(get<Keys>()), ...);
+  }
+
+  template <typename F>
+  constexpr void for_each_key(F&& f) const&
+  {
+    (f.template operator()<Keys>(get<Keys>()), ...);
+  }
+
   template <tc::string_literal... OtherKeys>
     requires requires(T& a, const T& b) { a += b; } && (keys::template contains<OtherKeys>() && ...)
   constexpr key_array& operator+=(key_array<T, key_set<OtherKeys...>> const& other)
@@ -48,5 +62,34 @@ struct key_array<T, key_set<Keys...>> {
 
 template <typename T, tc::string_literal... Keys>
 using key_array_t = key_array<T, key_set<Keys...>>;
+
+// clang-format off
+template <typename TG, tc::string_literal... GKeys,
+          typename TL, tc::string_literal... LKeys,
+          typename F>
+constexpr void bitransform_key_arrays(
+    key_array<TG, key_set<GKeys...>>& global,
+    const key_array<TL, key_set<LKeys...>>& local,
+    F&& f)
+{
+  ( // fold expression
+    [&] {
+      if constexpr (key_set<LKeys...>::template contains<GKeys>()) {
+        auto& g = global.template get<GKeys>();
+        const auto& l = local.template get<GKeys>();
+
+        // If F is directly invocable with (g, l), use that:
+        if constexpr (std::invocable<F&, decltype(g), decltype(l)>) {
+          std::invoke(f, g, l);
+        } else {
+          // Otherwise assume it's a key-aware callable: f.template operator()<K>(g, l)
+          f.template operator()<GKeys>(g, l);
+        }
+      }
+    }(),
+    ...
+  );
+}
+// clang-format on
 
 } // namespace tskv::common

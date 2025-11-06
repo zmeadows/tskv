@@ -1,6 +1,7 @@
 module;
 
 #include <array>
+#include <utility>
 
 export module common.key_set;
 
@@ -25,6 +26,8 @@ struct key_set {
   template <tc::string_literal K>
   [[nodiscard]] static consteval std::size_t index_of()
   {
+    static_assert(contains<K>(), "key_set::index_of<K>: key is not in this key_set");
+
     constexpr std::array<bool, size> matches{(Keys == K)...};
 
     for (std::size_t i = 0; i < size; ++i) {
@@ -33,12 +36,7 @@ struct key_set {
       }
     }
 
-    // Only instantiated if you actually call index_of with a missing key
-    []<bool present = contains<K>()>() {
-      static_assert(present, "key_set::index_of<K>: key is not in this key_set");
-    }();
-
-    return 0; // unreachable, but keeps the compiler happy
+    std::unreachable();
   }
 };
 
