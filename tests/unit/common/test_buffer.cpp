@@ -9,7 +9,7 @@
 import common.buffer;
 namespace tc = tskv::common;
 
-namespace {
+namespace { // helper functions
 
 // Convert a string_view to a span of bytes (ASCII-only tests, so this is fine).
 inline std::span<const std::byte> as_bytes(std::string_view s)
@@ -34,6 +34,11 @@ std::string read_string(tc::SimpleBuffer<N>& buf, std::size_t max_len = N)
   return std::string(reinterpret_cast<const char*>(tmp.data()), n);
 }
 
+std::string read_string(std::span<const std::byte> bytes)
+{
+  return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
 // Non-consuming peek via readable_span.
 template <std::size_t N>
 std::string peek_string(const tc::SimpleBuffer<N>& buf, std::size_t max_len)
@@ -46,7 +51,6 @@ std::string peek_string(const tc::SimpleBuffer<N>& buf, std::size_t max_len)
 
 TEST_SUITE("common.buffer")
 {
-
   TEST_CASE("default_state")
   {
     tc::SimpleBuffer<8> buf;
@@ -62,9 +66,9 @@ TEST_SUITE("common.buffer")
   {
     tc::SimpleBuffer<16> buf;
 
-    const std::string_view input   = "hello";
-    const auto             written = write_string(buf, input);
+    const std::string_view input = "hello";
 
+    const auto written = write_string(buf, input);
     CHECK(written == input.size());
     CHECK(buf.used_space() == written);
     CHECK(buf.free_space() == buf.capacity() - written);
@@ -81,9 +85,9 @@ TEST_SUITE("common.buffer")
   {
     tc::SimpleBuffer<8> buf;
 
-    const std::string_view input   = "ABCDEFGHIJK"; // 11 bytes
-    const auto             written = write_string(buf, input);
+    const std::string_view input = "ABCDEFGHIJK"; // 11 bytes
 
+    const auto written = write_string(buf, input);
     CHECK(written == buf.capacity());
     CHECK(buf.full());
     CHECK(buf.used_space() == buf.capacity());
@@ -151,14 +155,14 @@ TEST_SUITE("common.buffer")
 
     auto r1 = buf.readable_span(4);
     CHECK(r1.size() == 4);
-    CHECK(std::string(reinterpret_cast<const char*>(r1.data()), r1.size()) == "abcd");
+    CHECK(read_string(r1) == "abcd");
 
     buf.consume(2);
     CHECK(buf.used_space() == 4);
 
     auto r2 = buf.readable_span(8);
     CHECK(r2.size() == 4);
-    CHECK(std::string(reinterpret_cast<const char*>(r2.data()), r2.size()) == "cdef");
+    CHECK(read_string(r2) == "cdef");
 
     // consume(0) should be a no-op
     buf.consume(0);
@@ -189,5 +193,4 @@ TEST_SUITE("common.buffer")
     CHECK(buf.used_space() == 3);
     CHECK(peek_string(buf, 3) == "xyz");
   }
-
-} // TEST_SUITE
+}
