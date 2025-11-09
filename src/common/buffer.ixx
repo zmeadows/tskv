@@ -1,6 +1,23 @@
 module;
 
-// TODO[@zmeadows][P0]: add top-level comment
+//------------------------------------------------------------------------------
+// Module: tskv.common.buffer
+// Summary: simple fixed-capacity byte buffer with span-based API
+//
+//  - SimpleBuffer<BUFSIZE> owns a contiguous std::byte[BUFSIZE]
+//    * capacity() is constexpr and fixed at compile time
+//    * used_space()/free_space() expose current occupancy
+//  - write/read provide copy-based producer/consumer operations
+//    * write truncates to remaining free_space(), returns bytes written
+//    * read truncates to available used_space(), returns bytes read
+//  - writable_span/readable_span expose zero-copy views for staged I/O
+//    * caller must pair writable_span with commit(n)
+//    * caller must pair readable_span with consume(n)
+//  - consume() compacts the buffer via memmove; no wrap-around or ring logic
+//    * suitable as a simple baseline for higher-performance buffer variants
+//  - type is trivially constructible and not thread-safe
+//    * callers are responsible for any external synchronization
+//------------------------------------------------------------------------------
 
 #include <algorithm>
 #include <cassert>
