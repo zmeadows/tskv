@@ -11,13 +11,13 @@
 
 namespace fs = std::filesystem;
 
-import cmd.args;
-import cmd.version;
-import common.enum_traits;
-import common.files;
-import net.server;
-import net.utils;
-import storage.wal;
+import tskv.cmd.args;
+import tskv.cmd.version;
+import tskv.common.enum_traits;
+import tskv.common.files;
+import tskv.net.server;
+import tskv.net.utils;
+import tskv.storage.wal;
 
 namespace tc  = tskv::common;
 namespace ts  = tskv::storage;
@@ -146,7 +146,7 @@ int main_(int argc, char** argv)
     return EXIT_SUCCESS;
   }
 
-  tn::scratch();
+  tn::scratch_main();
 
   return EXIT_SUCCESS;
 }

@@ -1,5 +1,7 @@
 module;
 
+// TODO[@zmeadows][P0]: add top-level comment
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -7,9 +9,12 @@ module;
 #include <cstring>
 #include <span>
 
-export module common.buffer;
+export module tskv.common.buffer;
 
 export namespace tskv::common {
+
+// TODO[@zmeadows][P3]: Implement higher performance alternatives with identical interface.
+//                      (e.g., sliding window buffer, ring buffer, virtual memory mirrored ring buffer)
 
 template <std::size_t BUFSIZE>
 struct SimpleBuffer {
@@ -48,7 +53,7 @@ public:
 
   // Returns a contiguous writable span up to `max_len` (and <= free_space()).
   // Caller must later call commit(n) with n <= returned span size.
-  [[nodiscard]] std::span<std::byte> writable_span(std::size_t max_len) noexcept
+  [[nodiscard]] std::span<std::byte> writable_span(std::size_t max_len = capacity()) noexcept
   {
     return std::span(buf_ + offset_, std::min(max_len, free_space()));
   }
@@ -63,7 +68,8 @@ public:
 
   // Returns a contiguous readable span up to `max_len` (and <= used_space())
   // Caller can later optionally call consume(n) with n <= returned span size.
-  [[nodiscard]] std::span<const std::byte> readable_span(std::size_t max_len) const noexcept
+  [[nodiscard]] std::span<const std::byte> readable_span(
+    std::size_t max_len = capacity()) const noexcept
   {
     return std::span(buf_, std::min(max_len, used_space()));
   }

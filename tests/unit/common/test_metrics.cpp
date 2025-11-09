@@ -10,10 +10,10 @@
 
 using namespace std::chrono_literals;
 
-import common.metrics;
+import tskv.common.metrics;
 namespace metrics = tskv::common::metrics;
 
-TEST_SUITE("common.metrics")
+TEST_SUITE("tskv.common.metrics")
 {
   TEST_CASE("counters.single_threaded")
   {

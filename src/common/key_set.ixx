@@ -3,9 +3,9 @@ module;
 #include <array>
 #include <utility>
 
-export module common.key_set;
+export module tskv.common.key_set;
 
-export import common.string_literal;
+export import tskv.common.string_literal;
 
 namespace tc = tskv::common;
 

@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-import common.buffer;
+import tskv.common.buffer;
 namespace tc = tskv::common;
 
 namespace { // helper functions

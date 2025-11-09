@@ -1,7 +1,7 @@
 module;
 
 //------------------------------------------------------------------------------
-// Module: common.metrics
+// Module: tskv.common.metrics
 // Summary: performance-oriented server-side metrics
 //
 //  - metrics are mapped by compile-time-string to array-index
@@ -19,11 +19,11 @@ module;
 #include <mutex>
 #include <print>
 
-#include "../common/macro_utils.hpp"
+#include "tskv/common/attributes.hpp"
 
-export module common.metrics;
+export module tskv.common.metrics;
 
-import common.key_array;
+import tskv.common.key_array;
 namespace tc = tskv::common;
 
 using namespace std::chrono_literals;
@@ -59,9 +59,9 @@ private:
 public:
   static void sync(gauge_t& global, const AdditiveGaugeShard& shard);
 
-  FORCE_INLINE void    post_sync() { last_synced_ = current_; }
-  FORCE_INLINE void    set(gauge_t val) { current_ = val; }
-  FORCE_INLINE gauge_t current() { return current_; }
+  TSKV_INLINE void    post_sync() { last_synced_ = current_; }
+  TSKV_INLINE void    set(gauge_t val) { current_ = val; }
+  TSKV_INLINE gauge_t current() { return current_; }
 };
 
 void AdditiveGaugeShard::sync(gauge_t& global, const AdditiveGaugeShard& shard)
@@ -227,49 +227,49 @@ using clock     = std::chrono::steady_clock;
 using counter_t = counter_t;
 using gauge_t   = gauge_t;
 
-FORCE_INLINE void print()
+TSKV_INLINE void print()
 {
   detail::print();
 }
 
-FORCE_INLINE void global_reset() // for testing purposes only!
+TSKV_INLINE void global_reset() // for testing purposes only!
 {
   std::scoped_lock lock(detail::global_metrics_mutex);
   detail::global_metrics = detail::GlobalMetrics();
 }
 
-FORCE_INLINE void flush_thread(clock::duration min_interval = 1s)
+TSKV_INLINE void flush_thread(clock::duration min_interval = 1s)
 {
   detail::flush_thread(min_interval);
 }
 
 template <tc::string_literal K>
-FORCE_INLINE void add_counter(counter_t n) noexcept
+TSKV_INLINE void add_counter(counter_t n) noexcept
 {
   detail::add_counter<K>(n);
 }
 
 template <tc::string_literal K>
-FORCE_INLINE void inc_counter() noexcept
+TSKV_INLINE void inc_counter() noexcept
 {
   add_counter<K>(1);
 }
 
 template <tc::string_literal K>
-FORCE_INLINE counter_t get_counter() noexcept
+TSKV_INLINE counter_t get_counter() noexcept
 {
   std::scoped_lock lock(detail::global_metrics_mutex);
   return detail::global_metrics.counters.get<K>();
 }
 
 template <tc::string_literal K>
-FORCE_INLINE void set_gauge(gauge_t n) noexcept
+TSKV_INLINE void set_gauge(gauge_t n) noexcept
 {
   detail::set_gauge<K>(n);
 }
 
 template <tc::string_literal K>
-FORCE_INLINE gauge_t get_gauge() noexcept
+TSKV_INLINE gauge_t get_gauge() noexcept
 {
   std::scoped_lock lock(detail::global_metrics_mutex);
   return detail::global_metrics.additive_gauges.get<K>();

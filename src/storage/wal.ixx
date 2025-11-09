@@ -4,10 +4,9 @@ module;
 #include <cstdint>
 #include <string_view>
 
-export module storage.wal;
+export module tskv.storage.wal;
 
-import common.enum_traits;
-
+import tskv.common.enum_traits;
 namespace tc = tskv::common;
 
 export namespace tskv::storage {
@@ -16,14 +15,16 @@ enum class WALSyncPolicy : uint8_t { Append, FDataSync };
 
 } // namespace tskv::storage
 
+namespace ts = tskv::storage;
+
 export namespace tskv::common {
 
-template <> struct enum_traits<tskv::storage::WALSyncPolicy> {
-  static constexpr std::array<std::pair<tskv::storage::WALSyncPolicy, std::string_view>, 3> entries{
-    {
-      {tskv::storage::WALSyncPolicy::Append, "append"},
-      {tskv::storage::WALSyncPolicy::FDataSync, "fdatasync"},
-    }};
+template <>
+struct enum_traits<ts::WALSyncPolicy> {
+  static constexpr std::array<std::pair<ts::WALSyncPolicy, std::string_view>, 3> entries{{
+    {ts::WALSyncPolicy::Append, "append"},
+    {ts::WALSyncPolicy::FDataSync, "fdatasync"},
+  }};
 };
 
 } // namespace tskv::common
