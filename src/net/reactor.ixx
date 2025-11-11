@@ -135,18 +135,17 @@ void Reactor::on_connection_event(Connection* connection, std::uint32_t event_ma
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, &ev);
     connection->detach();
     pool_.release(client_fd);
+    ::close(client_fd);
     TSKV_LOG_INFO("closed client_fd = {}", client_fd);
     return;
   }
 
+  // TODO[@zmeadows][P2]: if this shows up in profiler, save previous mask and compare, don't always MOD
   const std::uint32_t new_mask = connection->desired_events() | EPOLLET | EPOLLRDHUP;
-
-  if (new_mask != event_mask) {
-    struct epoll_event event{};
-    event.events  = new_mask;
-    event.data.fd = client_fd;
-    epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event);
-  }
+  struct epoll_event  event{};
+  event.events  = new_mask;
+  event.data.fd = client_fd;
+  epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event);
 }
 
 void Reactor::on_listener_event()
@@ -172,6 +171,7 @@ void Reactor::on_listener_event()
 
     if (!set_socket_nonblocking(client_fd)) {
       TSKV_LOG_WARN("failed to set client connection socket to nonblocking");
+      ::close(client_fd);
       continue;
     }
 
@@ -186,13 +186,19 @@ void Reactor::on_listener_event()
     bool add_client_success = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, client_fd, &event) != -1;
     if (!add_client_success) {
       TSKV_LOG_WARN("failed to add newly accepted client (fd = {}) to epoll watch list", client_fd);
+      connection->detach();
+      pool_.release(client_fd);
+      ::close(client_fd);
     }
   }
 }
 
 void Reactor::poll_once()
 {
-  const int nevents = epoll_wait(epoll_fd_, evt_buffer_, EVENT_BUFSIZE, -1);
+  int nevents;
+  do {
+    nevents = epoll_wait(epoll_fd_, evt_buffer_, EVENT_BUFSIZE, -1);
+  } while (nevents == -1 && errno == EINTR);
 
   TSKV_INVARIANT(nevents != -1, "failed to poll events from epoll");
 

@@ -5,12 +5,16 @@ module;
 #include <cstring>
 #include <fcntl.h>
 #include <netdb.h>
-#include <print>
+#include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "tskv/common/logging.hpp"
+
 export module tskv.net.socket;
+
+import tskv.common.logging;
 
 export namespace tskv::net {
 
@@ -37,7 +41,8 @@ int start_listener()
   hints.ai_socktype = SOCK_STREAM; // TCP
 
   if (int status = getaddrinfo("localhost", "8080", &hints, &servinfo); status != 0) {
-    std::println("{}", gai_strerror(status));
+    const auto errmsg = gai_strerror(status);
+    TSKV_LOG_ERROR("geaddrinfo failure: {}", errmsg);
     return -1;
   }
 
@@ -76,20 +81,12 @@ int start_listener()
   freeaddrinfo(servinfo);
 
   if (listen(listen_fd, SOMAXCONN) == -1) {
-    std::println("failed to listen.");
+    TSKV_LOG_ERROR("Failed to listen on listen_fd = {}", listen_fd);
+    ::close(listen_fd);
     return -1;
   }
 
   return listen_fd;
-}
-
-int accept_client(int listen_fd)
-{
-
-  sockaddr_storage client_addr{};
-  socklen_t        client_addr_size = sizeof client_addr;
-
-  return accept(listen_fd, (sockaddr*)&client_addr, &client_addr_size);
 }
 
 } // namespace tskv::net

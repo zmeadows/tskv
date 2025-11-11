@@ -13,6 +13,7 @@ module;
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <system_error>
 #include <unistd.h>
 #include <unordered_map>
 #include <vector>
