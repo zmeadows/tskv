@@ -39,17 +39,27 @@ using clock = std::chrono::steady_clock;
 //  Counter
 //==============================================================================
 
-using CounterKeysST = tc::key_set<"testc.foo_st">;
+using CounterKeysST = tc::key_set<"testc.foo_st",
+  "net.socket_error.total",
+  "net.socket_error.econnreset",
+  "net.socket_error.etimedout",
+  "net.socket_error.epipe",
+  "net.socket_error.enetdown",
+  "net.socket_error.other">;
+
 using CounterKeysMT = tc::key_set<"testc.foo_mt">;
-using CounterKeys   = tc::key_set_union_t<CounterKeysST, CounterKeysMT>;
+
+using CounterKeys = tc::key_set_union_t<CounterKeysST, CounterKeysMT>;
 
 //==============================================================================
 //  AdditiveGauge
 //==============================================================================
 
 using AdditiveGaugeKeysST = tc::key_set<"testg.foo_st">;
+
 using AdditiveGaugeKeysMT = tc::key_set<"testg.foo_mt">;
-using AdditiveGaugeKeys   = tc::key_set_union_t<AdditiveGaugeKeysST, AdditiveGaugeKeysMT>;
+
+using AdditiveGaugeKeys = tc::key_set_union_t<AdditiveGaugeKeysST, AdditiveGaugeKeysMT>;
 
 struct AdditiveGaugeShard {
 private:

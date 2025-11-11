@@ -45,13 +45,13 @@ public:
   [[nodiscard]] std::size_t used_space() const noexcept { return offset_; }
   [[nodiscard]] std::size_t free_space() const noexcept { return BUFSIZE - offset_; }
 
-  [[nodiscard]] bool empty() const noexcept { return used_space() == 0; }
-  [[nodiscard]] bool full() const noexcept { return free_space() == 0; }
+  [[nodiscard]] bool empty() const noexcept { return offset_ == 0; }
+  [[nodiscard]] bool full() const noexcept { return offset_ == BUFSIZE; }
 
   void clear() noexcept { offset_ = 0; }
 
   // Write as many bytes as will fit; returns bytes written.
-  [[nodiscard]] std::size_t write(std::span<const std::byte> src) noexcept
+  [[nodiscard]] std::size_t write_from(std::span<const std::byte> src) noexcept
   {
     const std::size_t count = std::min(src.size(), free_space());
     std::memcpy(buf_ + offset_, src.data(), count);
@@ -60,7 +60,7 @@ public:
   }
 
   // Read as many bytes as available; returns bytes read.
-  [[nodiscard]] std::size_t read(std::span<std::byte> dst) noexcept
+  [[nodiscard]] std::size_t read_into(std::span<std::byte> dst) noexcept
   {
     const std::size_t count = std::min(dst.size(), used_space());
     std::memcpy(dst.data(), buf_, count);

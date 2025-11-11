@@ -21,7 +21,7 @@ inline std::span<const std::byte> as_bytes(std::string_view s)
 template <std::size_t N>
 std::size_t write_string(tc::SimpleBuffer<N>& buf, std::string_view s)
 {
-  return buf.write(as_bytes(s));
+  return buf.write_from(as_bytes(s));
 }
 
 // Read up to max_len bytes from the buffer into a std::string.
@@ -30,7 +30,7 @@ std::string read_string(tc::SimpleBuffer<N>& buf, std::size_t max_len = N)
 {
   std::vector<std::byte> tmp(max_len);
   std::span<std::byte>   dst(tmp.data(), tmp.size());
-  const auto             n = buf.read(dst);
+  const auto             n = buf.read_into(dst);
   return std::string(reinterpret_cast<const char*>(tmp.data()), n);
 }
 

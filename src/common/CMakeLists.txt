@@ -4,6 +4,7 @@ target_sources(tskv_common
   PUBLIC FILE_SET CXX_MODULES
   FILES buffer.ixx
         enum_traits.ixx
+        time.ixx
         files.ixx
         key_array.ixx
         key_set.ixx

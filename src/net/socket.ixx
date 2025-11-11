@@ -3,6 +3,7 @@ module;
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <netdb.h>
 #include <print>
 #include <sys/socket.h>
@@ -13,9 +14,18 @@ export module tskv.net.socket;
 
 export namespace tskv::net {
 
-inline int socket_stub()
+bool set_socket_nonblocking(int fd)
 {
-  return 0;
+  int flags = fcntl(fd, F_GETFL, 0);
+  if (flags == -1) {
+    return false;
+  }
+
+  if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+    return false;
+  }
+
+  return true;
 }
 
 int start_listener()
@@ -45,6 +55,11 @@ int start_listener()
 
     int yes = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
+      ::close(fd);
+      continue;
+    }
+
+    if (!set_socket_nonblocking(fd)) {
       ::close(fd);
       continue;
     }

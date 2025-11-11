@@ -1,13 +1,14 @@
 module;
 
 #include <cassert>
+#include <cstdlib>
 #include <netdb.h>
-#include <print>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "tskv/common/defer.hpp"
 #include "tskv/common/logging.hpp"
 
 export module tskv.net.server;
@@ -16,6 +17,7 @@ import tskv.common.buffer;
 import tskv.common.logging;
 import tskv.net.socket;
 import tskv.net.connection;
+import tskv.net.reactor;
 
 namespace tc = tskv::common;
 
@@ -32,25 +34,14 @@ void scratch_main()
     std::abort();
   }
 
-  int client_fd = accept_client(listen_fd);
+  defer {
+    close(listen_fd);
+  };
 
-  if (client_fd == -1) {
-    TSKV_LOG_CRITICAL("accept");
-    std::abort();
-  }
+  Reactor reactor;
 
-  std::println("accepted connection.");
-
-  Connection connection;
-  connection.attach(client_fd);
-  while (!connection.closed()) {
-    connection.echo();
-  }
-  connection.disconnect();
-
-  std::println("closed connection.");
-
-  close(listen_fd);
+  reactor.add_listener(listen_fd);
+  reactor.run();
 }
 
 } // namespace tskv::net
