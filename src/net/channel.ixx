@@ -20,6 +20,7 @@ module;
 #include <system_error>
 #include <unistd.h>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "tskv/common/attributes.hpp"
@@ -47,7 +48,7 @@ concept ProtocolFor = requires(P p, IO& io) {
 
 export namespace tskv::net {
 
-enum class SendResult : std::uint8_t { Ok, WouldBlock, Closed };
+enum class SendResult : std::uint8_t { Full, Partial, Closed };
 
 template <class Proto>
 class ChannelIO;
@@ -74,7 +75,7 @@ private:
 
   [[nodiscard]] inline bool can_read() const noexcept
   {
-    return socket_state_ == SocketState::Running;
+    return socket_state_ == SocketState::Running && !rx_buf_.full();
   }
 
   [[nodiscard]] inline bool can_write() const noexcept
@@ -127,7 +128,7 @@ private:
     }
   }
 
-  std::size_t flush_tx_buffer()
+  std::size_t try_flush_tx_buffer()
   {
     if (!can_write()) {
       return 0;
@@ -173,7 +174,7 @@ private:
     }
   }
 
-  std::size_t fill_rx_buffer()
+  std::size_t try_fill_rx_buffer()
   {
     if (!can_read()) {
       return 0;
@@ -181,10 +182,9 @@ private:
 
     std::size_t bytes_received = 0;
 
-    while (true) {
-      TSKV_INVARIANT(!rx_buf_.full(), "no backpressure handling implemented yet");
-
+    while (!rx_buf_.full()) {
       std::span<std::byte> recv_span = rx_buf_.writable_span();
+      assert(!recv_span.empty());
 
       const ssize_t recv_rc = recv(fd_, recv_span.data(), recv_span.size(), 0);
 
@@ -201,12 +201,10 @@ private:
 #if defined(EWOULDBLOCK) && (EWOULDBLOCK != EAGAIN)
           case EWOULDBLOCK:
 #endif
-          case EAGAIN: {
+          case EAGAIN:
             return bytes_received;
-          }
-          case EINTR: {
+          case EINTR:
             continue;
-          }
           default: {
             socket_state_ = SocketState::Aborting;
             handle_error_event();
@@ -215,6 +213,8 @@ private:
         }
       }
     }
+
+    std::unreachable();
   }
 
   [[nodiscard]] TSKV_INLINE std::span<const std::byte> rx_span() const noexcept
@@ -224,19 +224,15 @@ private:
 
   TSKV_INLINE void rx_consume(std::size_t nbytes) noexcept { rx_buf_.consume(nbytes); }
 
-  [[nodiscard]] SendResult tx_send(std::span<const std::byte> data) noexcept
+  [[nodiscard]] std::pair<std::size_t, SendResult> tx_send(std::span<const std::byte> data) noexcept
   {
     if (socket_state_ == SocketState::Closed) [[unlikely]] {
-      return SendResult::Closed;
+      return {0, SendResult::Closed};
     }
 
-    if (data.size() > tx_buf_.free_space()) {
-      return SendResult::WouldBlock;
-    }
+    const std::size_t bytes_queued = tx_buf_.write_from(data);
 
-    (void)tx_buf_.write_from(data);
-
-    return SendResult::Ok;
+    return {bytes_queued, bytes_queued == data.size() ? SendResult::Full : SendResult::Partial};
   }
 
 public:
@@ -281,20 +277,24 @@ public:
     ChannelIO<Proto> io(*this);
 
     // Always try to drain readable data if EPOLLIN or HUP/RDHUP are set.
-    const bool want_read = event_mask & (EPOLLIN | EPOLLHUP | EPOLLRDHUP);
-    if (want_read && can_read()) {
-      const std::size_t received = fill_rx_buffer();
-      if (received > 0) {
-        proto_.on_read(io);
-      }
+    if (event_mask & (EPOLLIN | EPOLLHUP | EPOLLRDHUP)) {
+      const std::size_t nrecv = try_fill_rx_buffer();
+      metrics::add_counter<"net.bytes_received">(nrecv);
     }
 
-    if ((event_mask & EPOLLOUT) && socket_state_ != SocketState::Aborting) {
-      (void)flush_tx_buffer();
+    bool force_try_flush = false;
+    if (!rx_buf_.empty()) {
+      force_try_flush = true;
+      proto_.on_read(io);
+    }
+
+    if (event_mask & EPOLLOUT || force_try_flush) {
+      const std::size_t nsent = try_flush_tx_buffer();
+      metrics::add_counter<"net.bytes_sent">(nsent);
     }
 
     if (event_mask & (EPOLLHUP | EPOLLRDHUP) && socket_state_ == SocketState::Running) {
-      // Peer won’t send more. If we already hit recv() == 0, fill_rx_buffer()
+      // Peer won’t send more. If we already hit recv() == 0, try_fill_rx_buffer()
       // may have already set Draining; otherwise, do it here.
       socket_state_ = SocketState::Draining;
     }
@@ -322,7 +322,8 @@ public:
     return ch_.rx_span();
   }
 
-  [[nodiscard]] TSKV_INLINE SendResult tx_send(std::span<const std::byte> data) noexcept
+  [[nodiscard]] TSKV_INLINE std::pair<std::size_t, SendResult> tx_send(
+    std::span<const std::byte> data) noexcept
   {
     return ch_.tx_send(data);
   }
@@ -337,8 +338,10 @@ struct EchoProtocol {
   void on_read(ChannelIO<EchoProtocol>& io)
   {
     auto rx_bytes = io.rx_span();
-    if (io.tx_send(rx_bytes) == SendResult::Ok) [[likely]] {
-      io.rx_consume(rx_bytes.size());
+
+    const auto [bytes_sent, result] = io.tx_send(rx_bytes);
+    if (bytes_sent < 0) [[likely]] {
+      io.rx_consume(bytes_sent);
     }
   }
 };

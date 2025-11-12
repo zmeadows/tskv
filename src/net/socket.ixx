@@ -5,7 +5,6 @@ module;
 #include <cstring>
 #include <fcntl.h>
 #include <netdb.h>
-#include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -42,7 +41,7 @@ int start_listener()
 
   if (int status = getaddrinfo("localhost", "8080", &hints, &servinfo); status != 0) {
     const auto errmsg = gai_strerror(status);
-    TSKV_LOG_ERROR("geaddrinfo failure: {}", errmsg);
+    TSKV_LOG_ERROR("getaddrinfo failure: {}", errmsg);
     return -1;
   }
 

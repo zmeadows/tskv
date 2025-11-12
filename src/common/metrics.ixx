@@ -45,7 +45,13 @@ using CounterKeysST = tc::key_set<"testc.foo_st",
   "net.socket_error.etimedout",
   "net.socket_error.epipe",
   "net.socket_error.enetdown",
-  "net.socket_error.other">;
+  "net.socket_error.other",
+  "net.bytes_received",
+  "net.bytes_sent",
+  "net.accept_error.emfile",
+  "net.accept_error.enfile",
+  "net.accept_error.enobufs",
+  "net.accept_error.other">;
 
 using CounterKeysMT = tc::key_set<"testc.foo_mt">;
 

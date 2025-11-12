@@ -15,9 +15,11 @@ module;
 export module tskv.net.reactor;
 
 import tskv.common.logging;
-
+import tskv.common.metrics;
 import tskv.net.channel;
 import tskv.net.socket;
+
+namespace metrics = tskv::common::metrics;
 
 // https://copyconstruct.medium.com/the-method-to-epolls-madness-d9d2d6378642
 
@@ -68,6 +70,11 @@ private:
   ChannelPool<Proto> pool_;
 
   epoll_event evt_buffer_[EVENT_BUFSIZE]{};
+
+  // To support multiple listeners:
+  // * store a small vector of listener fds (each EPOLLIN|EPOLLET-registered)
+  // * tag epoll events (e.g., via event.data.u64 or a pointer wrapper) to distinguish listeners from channels, and
+  // * dispatch `accept4()` on whichever listener produced the event.
 
   int  epoll_fd_       = -1; // owning
   int  listener_fd_    = -1; // non-owning
@@ -138,7 +145,9 @@ void Reactor<Proto>::on_channel_event(Channel<Proto>* channel, std::uint32_t eve
 
   if (channel->should_close()) {
     struct epoll_event ev{};
-    epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, &ev);
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, &ev) == -1) {
+      TSKV_LOG_WARN("epoll_ctl DEL failed for fd={}", client_fd);
+    }
     channel->detach();
     pool_.release(client_fd);
     ::close(client_fd);
@@ -151,16 +160,17 @@ void Reactor<Proto>::on_channel_event(Channel<Proto>* channel, std::uint32_t eve
   struct epoll_event  event{};
   event.events  = new_mask;
   event.data.fd = client_fd;
-  epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event);
+  if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event) == -1) {
+    TSKV_LOG_WARN("epoll_ctl MOD failed for fd={}", client_fd);
+  }
 }
 
 template <Protocol Proto>
 void Reactor<Proto>::on_listener_event()
 {
-  sockaddr_storage client_addr{};
-  socklen_t        client_addr_size = sizeof client_addr;
-
   while (true) {
+    sockaddr_storage client_addr{};
+    socklen_t        client_addr_size = sizeof client_addr;
     int client_fd = accept4(listener_fd_, (sockaddr*)&client_addr, &client_addr_size, 0);
 
     if (client_fd == -1) {
@@ -169,8 +179,22 @@ void Reactor<Proto>::on_listener_event()
         return;
       }
       else {
-        TSKV_LOG_WARN("failed to accept new channel");
-        continue;
+        TSKV_LOG_WARN("failed to accept new channel: errno={}", errno);
+
+        switch (errno) {
+          case EMFILE:
+            metrics::inc_counter<"net.accept_error.emfile">();
+            break;
+          case ENFILE:
+            metrics::inc_counter<"net.accept_error.enfile">();
+            break;
+          case ENOBUFS:
+            metrics::inc_counter<"net.accept_error.enobufs">();
+            break;
+          default:
+            metrics::inc_counter<"net.accept_error.other">();
+            break;
+        }
       }
     }
 
@@ -205,6 +229,7 @@ void Reactor<Proto>::poll_once()
 {
   int nevents;
   do {
+    // timeout == -1 => wait forever (or until interrupt)
     nevents = epoll_wait(epoll_fd_, evt_buffer_, EVENT_BUFSIZE, -1);
   } while (nevents == -1 && errno == EINTR);
 
@@ -230,6 +255,11 @@ void Reactor<Proto>::poll_once()
 template <Protocol Proto>
 void Reactor<Proto>::run()
 {
+  // run() currently blocks forever in epoll_wait; to support graceful shutdown,
+  // wire `stop_requested_` to a wakeup fd (eventfd/timerfd) registered with epoll,
+  // and break the loop when that fd fires. On shutdown, stop accepting, mark
+  // channels for draining (read side closed), flush pending writes, then remove
+  // fds from epoll and close them before returning.
   while (true) {
     poll_once();
   }
