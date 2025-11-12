@@ -2,10 +2,10 @@
 
 #include <string_view>
 
-import common.string_literal;
+import tskv.common.string_literal;
 namespace tc = tskv::common;
 
-TEST_SUITE("common.string_literal")
+TEST_SUITE("tskv.common.string_literal")
 {
   TEST_CASE("basic")
   {

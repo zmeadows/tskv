@@ -3,7 +3,7 @@ module;
 #include <algorithm>
 #include <string_view>
 
-export module common.string_literal;
+export module tskv.common.string_literal;
 
 export namespace tskv::common {
 

@@ -1,5 +1,6 @@
 add_executable(tskv_unit_tests
   unit_main.cpp
+  common/test_buffer.cpp
   common/test_key_array.cpp
   common/test_key_set.cpp
   common/test_metrics.cpp

@@ -2,11 +2,11 @@
 
 #include <cstdint>
 
-import common.key_array;
+import tskv.common.key_array;
 
 namespace tc = tskv::common;
 
-TEST_SUITE("common.key_array")
+TEST_SUITE("tskv.common.key_array")
 {
   using A = tc::key_array_t<std::uint64_t, "x", "y">;
 

@@ -1,3 +1,4 @@
+---
 # Global fallback flags (used when a file isn't in compile_commands.json)
 CompileFlags:
   Add: [-std=c++23]

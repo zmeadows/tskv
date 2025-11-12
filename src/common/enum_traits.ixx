@@ -3,7 +3,7 @@ module;
 #include <optional>
 #include <string_view>
 
-export module common.enum_traits;
+export module tskv.common.enum_traits;
 
 export namespace tskv::common {
 

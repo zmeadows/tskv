@@ -3,7 +3,7 @@ module;
 #include <print>
 #include <string_view>
 
-export module cmd.version;
+export module tskv.cmd.version;
 
 export namespace tskv::cmd {
 

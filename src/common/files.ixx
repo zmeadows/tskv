@@ -8,7 +8,7 @@ module;
 #include <string>
 #include <system_error>
 
-export module common.files;
+export module tskv.common.files;
 
 namespace fs = std::filesystem;
 

@@ -1,4 +1,4 @@
-export module net.utils;
+export module tskv.net.utils;
 
 export namespace tskv::net {
 

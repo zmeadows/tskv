@@ -10,10 +10,10 @@
 
 using namespace std::chrono_literals;
 
-import common.metrics;
+import tskv.common.metrics;
 namespace metrics = tskv::common::metrics;
 
-TEST_SUITE("common.metrics")
+TEST_SUITE("tskv.common.metrics")
 {
   TEST_CASE("counters.single_threaded")
   {
@@ -80,14 +80,13 @@ TEST_SUITE("common.metrics")
     metrics::global_reset();
 
     CHECK(metrics::get_gauge<"testg.foo_st">() == 0);
-    metrics::set_gauge<"testg.foo_st">(1);
-    CHECK(metrics::get_gauge<"testg.foo_st">() == 1);
-    metrics::set_gauge<"testg.foo_st">(2);
-    CHECK(metrics::get_gauge<"testg.foo_st">() == 2);
-    metrics::set_gauge<"testg.foo_st">(100);
-    CHECK(metrics::get_gauge<"testg.foo_st">() == 100);
-    metrics::set_gauge<"testg.foo_st">(2);
-    CHECK(metrics::get_gauge<"testg.foo_st">() == 2);
+
+    const auto gauge_values = {3, 5, 4, 1000, 99, 123, 100, 105, 9999, 5000};
+
+    for (metrics::gauge_t g : gauge_values) {
+      metrics::set_gauge<"testg.foo_st">(g);
+      CHECK(metrics::get_gauge<"testg.foo_st">() == g);
+    }
 
     metrics::global_reset();
     CHECK(metrics::get_gauge<"testg.foo_st">() == 0);
