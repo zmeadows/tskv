@@ -21,7 +21,7 @@ module;
 #include "tskv/common/attributes.hpp"
 #include "tskv/common/logging.hpp"
 
-export module tskv.net.connection;
+export module tskv.net.channel;
 
 import tskv.common.buffer;
 import tskv.common.logging;
@@ -36,12 +36,23 @@ inline std::size_t ceil_div(std::size_t x, std::size_t y)
   return x / y + (x % y != 0);
 }
 
+template <class P, class IO>
+concept ProtocolFor = requires(P p, IO& io) {
+  { p.on_read(io) } -> std::same_as<void>;
+};
+
 export namespace tskv::net {
 
-struct Connection {
+template <class Proto>
+class ChannelIO;
+
+template <class Proto>
+concept Protocol = ProtocolFor<Proto, ChannelIO<Proto>>;
+
+struct Channel {
 private:
-  static constexpr auto TX_BUF_SIZE = 2048;
-  static constexpr auto RX_BUF_SIZE = 2048;
+  static constexpr auto TX_BUF_SIZE = 4096;
+  static constexpr auto RX_BUF_SIZE = 4096;
 
   tc::SimpleBuffer<TX_BUF_SIZE> tx_buf_{};
   tc::SimpleBuffer<RX_BUF_SIZE> rx_buf_{};
@@ -78,11 +89,6 @@ private:
     const std::size_t byte_count = rx_buf_.read_into(out_span);
 
     tx_buf_.commit(byte_count);
-  }
-
-  void handle_write_event() noexcept
-  {
-    // nothing to do here for simple echo server
   }
 
   TSKV_COLD_PATH void handle_error_event() noexcept
@@ -144,7 +150,10 @@ private:
       }
       else if (send_rc == -1) {
         switch (errno) {
-          case EWOULDBLOCK: {
+#if defined(EWOULDBLOCK) && (EWOULDBLOCK != EAGAIN)
+          case EWOULDBLOCK:
+#endif
+          case EAGAIN: {
             return bytes_sent;
           }
           case EINTR: {
@@ -187,7 +196,10 @@ private:
       }
       else if (recv_rc == -1) {
         switch (errno) {
-          case EWOULDBLOCK: {
+#if defined(EWOULDBLOCK) && (EWOULDBLOCK != EAGAIN)
+          case EWOULDBLOCK:
+#endif
+          case EAGAIN: {
             return bytes_received;
           }
           case EINTR: {
@@ -246,9 +258,8 @@ public:
       handle_read_event();
     }
 
-    if ((event_mask & EPOLLOUT) && socket_state_ != SocketState::Aborting &&
-        flush_tx_buffer() > 0) {
-      handle_write_event();
+    if ((event_mask & EPOLLOUT) && socket_state_ != SocketState::Aborting) {
+      (void)flush_tx_buffer();
     }
 
     if (event_mask & EPOLLRDHUP) {
@@ -267,14 +278,14 @@ public:
   }
 };
 
-struct ConnectionPool {
+struct ChannelPool {
 private:
   struct Chunk {
     static constexpr std::size_t CHUNK_SIZE = 256;
     static_assert(CHUNK_SIZE <= std::numeric_limits<std::uint16_t>::max(),
       "CHUNK_SIZE too large for uint16_t indices");
 
-    Connection slots_[CHUNK_SIZE]{};
+    Channel slots_[CHUNK_SIZE]{};
 
     // free_stack_[0..free_top_-1] contains indices of currently free slots.
     std::uint16_t free_stack_[CHUNK_SIZE]{};
@@ -291,25 +302,25 @@ private:
 
     [[nodiscard]] inline bool full() const noexcept { return free_top_ == 0; }
 
-    [[nodiscard]] Connection* acquire() noexcept
+    [[nodiscard]] Channel* acquire() noexcept
     {
       TSKV_INVARIANT(free_top_ > 0, "acquire with full Chunk");
       const std::uint16_t next_free_idx = free_stack_[--free_top_];
       return &slots_[next_free_idx];
     }
 
-    void release(Connection* cptr) noexcept
+    void release(Channel* cptr) noexcept
     {
       const std::uint16_t idx = static_cast<std::uint16_t>(cptr - slots_);
-      TSKV_INVARIANT(idx < CHUNK_SIZE, "Connection doesn't live in this Chunk");
+      TSKV_INVARIANT(idx < CHUNK_SIZE, "Channel doesn't live in this Chunk");
       TSKV_INVARIANT(free_top_ < CHUNK_SIZE, "free_top_ overflow");
       free_stack_[free_top_++] = idx;
     }
   };
 
   struct Handle {
-    Chunk*      chunk      = nullptr;
-    Connection* connection = nullptr;
+    Chunk*   chunk   = nullptr;
+    Channel* channel = nullptr;
   };
 
   void allocate_new_chunk()
@@ -323,7 +334,7 @@ private:
   std::unordered_map<int, Handle>     active_;
 
 public:
-  ConnectionPool(std::size_t initial_capacity = Chunk::CHUNK_SIZE)
+  ChannelPool(std::size_t initial_capacity = Chunk::CHUNK_SIZE)
   {
     active_.max_load_factor(0.8);
     active_.reserve(5 * initial_capacity / 4);
@@ -339,24 +350,21 @@ public:
     }
   }
 
-  ConnectionPool(const ConnectionPool&)            = delete;
-  ConnectionPool& operator=(const ConnectionPool&) = delete;
+  ChannelPool(const ChannelPool&)            = delete;
+  ChannelPool& operator=(const ChannelPool&) = delete;
 
-  ~ConnectionPool()
-  {
-    TSKV_INVARIANT(active_.empty(), "destroyed ConnectionPool with active connections");
-  }
+  ~ChannelPool() { TSKV_INVARIANT(active_.empty(), "destroyed ChannelPool with active channels"); }
 
-  [[nodiscard]] Connection* lookup(int fd) const noexcept
+  [[nodiscard]] Channel* lookup(int fd) const noexcept
   {
     if (auto it = active_.find(fd); it != active_.end()) [[likely]] {
-      return it->second.connection;
+      return it->second.channel;
     }
     return nullptr;
   }
 
-  // CONTRACT: returned Connection* only valid between acquire(fd) and release(fd)
-  [[nodiscard]] Connection* acquire(int fd)
+  // CONTRACT: returned Channel* only valid between acquire(fd) and release(fd)
+  [[nodiscard]] Channel* acquire(int fd)
   {
     assert(fd != -1 && "INVALID ARGS: poisoned socket file descriptor (fd = -1)");
 
@@ -366,19 +374,19 @@ public:
 
     Chunk* chunk = nonfull_chunks_.back();
 
-    Connection* connection = chunk->acquire();
+    Channel* channel = chunk->acquire();
 
     try { // emplace can throw
-      auto [it, inserted] = active_.emplace(fd, Handle{chunk, connection});
+      auto [it, inserted] = active_.emplace(fd, Handle{chunk, channel});
 
       if (!inserted) [[unlikely]] {
-        chunk->release(connection);
+        chunk->release(channel);
         assert(inserted && "INVALID ARGS: fd already present in pool");
         return nullptr;
       }
     }
     catch (const std::exception&) {
-      chunk->release(connection);
+      chunk->release(channel);
       throw;
     }
 
@@ -386,10 +394,10 @@ public:
       nonfull_chunks_.pop_back();
     }
 
-    return connection;
+    return channel;
   }
 
-  // CONTRACT: associated Connection* for fd never used again after release(fd)
+  // CONTRACT: associated Channel* for fd never used again after release(fd)
   void release(int fd) noexcept
   {
     auto it = active_.find(fd);
@@ -399,10 +407,10 @@ public:
       return;
     }
 
-    const auto& [chunk, connection] = it->second;
+    const auto& [chunk, channel] = it->second;
 
     const bool was_full = chunk->full();
-    chunk->release(connection);
+    chunk->release(channel);
 
     if (was_full) [[unlikely]] {
       nonfull_chunks_.push_back(chunk);

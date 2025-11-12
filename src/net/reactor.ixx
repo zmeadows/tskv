@@ -16,7 +16,7 @@ export module tskv.net.reactor;
 
 import tskv.common.logging;
 
-import tskv.net.connection;
+import tskv.net.channel;
 import tskv.net.socket;
 
 // https://copyconstruct.medium.com/the-method-to-epolls-madness-d9d2d6378642
@@ -64,8 +64,8 @@ struct Reactor {
 private:
   static constexpr std::size_t EVENT_BUFSIZE = 128;
 
-  epoll_event    evt_buffer_[EVENT_BUFSIZE]{};
-  ConnectionPool pool_;
+  epoll_event evt_buffer_[EVENT_BUFSIZE]{};
+  ChannelPool pool_;
 
   int  epoll_fd_       = -1; // owning
   int  listener_fd_    = -1; // non-owning
@@ -74,7 +74,7 @@ private:
   Reactor(const Reactor&)            = delete;
   Reactor& operator=(const Reactor&) = delete;
 
-  void on_connection_event(Connection* connection, std::uint32_t event_mask);
+  void on_channel_event(Channel* channel, std::uint32_t event_mask);
   void on_listener_event();
 
 public:
@@ -124,16 +124,16 @@ void Reactor::add_listener(int listener_fd)
   listener_fd_ = listener_fd;
 }
 
-void Reactor::on_connection_event(Connection* connection, std::uint32_t event_mask)
+void Reactor::on_channel_event(Channel* channel, std::uint32_t event_mask)
 {
-  const int client_fd = connection->fd();
+  const int client_fd = channel->fd();
 
-  connection->handle_events(event_mask);
+  channel->handle_events(event_mask);
 
-  if (connection->should_close()) {
+  if (channel->should_close()) {
     struct epoll_event ev{};
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, &ev);
-    connection->detach();
+    channel->detach();
     pool_.release(client_fd);
     ::close(client_fd);
     TSKV_LOG_INFO("closed client_fd = {}", client_fd);
@@ -141,7 +141,7 @@ void Reactor::on_connection_event(Connection* connection, std::uint32_t event_ma
   }
 
   // TODO[@zmeadows][P2]: if this shows up in profiler, save previous mask and compare, don't always MOD
-  const std::uint32_t new_mask = connection->desired_events() | EPOLLET | EPOLLRDHUP;
+  const std::uint32_t new_mask = channel->desired_events() | EPOLLET | EPOLLRDHUP;
   struct epoll_event  event{};
   event.events  = new_mask;
   event.data.fd = client_fd;
@@ -158,35 +158,35 @@ void Reactor::on_listener_event()
 
     if (client_fd == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        // done processing new connections, try again later
+        // done processing new channels, try again later
         return;
       }
       else {
-        TSKV_LOG_WARN("failed to accept new connection");
+        TSKV_LOG_WARN("failed to accept new channel");
         continue;
       }
     }
 
-    // process valid new connection
+    // process valid new channel
 
     if (!set_socket_nonblocking(client_fd)) {
-      TSKV_LOG_WARN("failed to set client connection socket to nonblocking");
+      TSKV_LOG_WARN("failed to set client channel socket to nonblocking");
       ::close(client_fd);
       continue;
     }
 
-    Connection* connection = pool_.acquire(client_fd);
-    connection->attach(client_fd);
+    Channel* channel = pool_.acquire(client_fd);
+    channel->attach(client_fd);
 
     struct epoll_event event{};
-    event.events  = connection->desired_events() | EPOLLET | EPOLLRDHUP;
+    event.events  = channel->desired_events() | EPOLLET | EPOLLRDHUP;
     event.data.fd = client_fd;
     TSKV_LOG_INFO("added client_fd = {}", client_fd);
 
     bool add_client_success = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, client_fd, &event) != -1;
     if (!add_client_success) {
       TSKV_LOG_WARN("failed to add newly accepted client (fd = {}) to epoll watch list", client_fd);
-      connection->detach();
+      channel->detach();
       pool_.release(client_fd);
       ::close(client_fd);
     }
@@ -207,8 +207,8 @@ void Reactor::poll_once()
     const int           event_fd   = evt.data.fd;
     const std::uint32_t event_mask = evt.events;
 
-    if (Connection* connection = pool_.lookup(event_fd); connection != nullptr) [[likely]] {
-      on_connection_event(connection, event_mask);
+    if (Channel* channel = pool_.lookup(event_fd); channel != nullptr) [[likely]] {
+      on_channel_event(channel, event_mask);
     }
     else if (event_fd == listener_fd_) {
       on_listener_event();

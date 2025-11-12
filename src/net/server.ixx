@@ -16,7 +16,7 @@ export module tskv.net.server;
 import tskv.common.buffer;
 import tskv.common.logging;
 import tskv.net.socket;
-import tskv.net.connection;
+import tskv.net.channel;
 import tskv.net.reactor;
 
 namespace tc = tskv::common;

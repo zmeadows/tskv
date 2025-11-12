@@ -4,7 +4,7 @@ target_sources(
   PUBLIC FILE_SET
          CXX_MODULES
          FILES
-         connection.ixx
+         channel.ixx
          reactor.ixx
          server.ixx
          socket.ixx
