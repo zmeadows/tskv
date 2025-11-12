@@ -7,14 +7,17 @@
 
 #include "macros.hpp"
 
+// TODO[@zmeadows][P2]: replace std::expected error handling here with simple direct process termination.
+
 namespace fs = std::filesystem;
 
-import common.enum_traits;
-import common.files;
-import storage.wal;
-import cmd.args;
-import cmd.version;
-import net.utils;
+import tskv.cmd.args;
+import tskv.cmd.version;
+import tskv.common.enum_traits;
+import tskv.common.files;
+import tskv.net.server;
+import tskv.net.utils;
+import tskv.storage.wal;
 
 namespace tc  = tskv::common;
 namespace ts  = tskv::storage;
@@ -142,6 +145,8 @@ int main_(int argc, char** argv)
     config->print();
     return EXIT_SUCCESS;
   }
+
+  tn::scratch_main();
 
   return EXIT_SUCCESS;
 }

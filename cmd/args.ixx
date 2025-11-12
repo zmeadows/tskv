@@ -13,10 +13,10 @@ module;
 #include <utility>
 #include <vector>
 
-export module cmd.args;
+export module tskv.cmd.args;
 
-import storage.wal;
-import common.enum_traits;
+import tskv.storage.wal;
+import tskv.common.enum_traits;
 
 namespace ts = tskv::storage;
 namespace tc = tskv::common;

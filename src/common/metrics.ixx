@@ -1,7 +1,7 @@
 module;
 
 //------------------------------------------------------------------------------
-// Module: common.metrics
+// Module: tskv.common.metrics
 // Summary: performance-oriented server-side metrics
 //
 //  - metrics are mapped by compile-time-string to array-index
@@ -19,11 +19,11 @@ module;
 #include <mutex>
 #include <print>
 
-#include "../common/macro_utils.hpp"
+#include "tskv/common/attributes.hpp"
 
-export module common.metrics;
+export module tskv.common.metrics;
 
-import common.key_array;
+import tskv.common.key_array;
 namespace tc = tskv::common;
 
 using namespace std::chrono_literals;
@@ -39,17 +39,33 @@ using clock = std::chrono::steady_clock;
 //  Counter
 //==============================================================================
 
-using CounterKeysST = tc::key_set<"testc.foo_st">;
+using CounterKeysST = tc::key_set<"testc.foo_st",
+  "net.socket_error.total",
+  "net.socket_error.econnreset",
+  "net.socket_error.etimedout",
+  "net.socket_error.epipe",
+  "net.socket_error.enetdown",
+  "net.socket_error.other",
+  "net.bytes_received",
+  "net.bytes_sent",
+  "net.accept_error.emfile",
+  "net.accept_error.enfile",
+  "net.accept_error.enobufs",
+  "net.accept_error.other">;
+
 using CounterKeysMT = tc::key_set<"testc.foo_mt">;
-using CounterKeys   = tc::key_set_union_t<CounterKeysST, CounterKeysMT>;
+
+using CounterKeys = tc::key_set_union_t<CounterKeysST, CounterKeysMT>;
 
 //==============================================================================
 //  AdditiveGauge
 //==============================================================================
 
 using AdditiveGaugeKeysST = tc::key_set<"testg.foo_st">;
+
 using AdditiveGaugeKeysMT = tc::key_set<"testg.foo_mt">;
-using AdditiveGaugeKeys   = tc::key_set_union_t<AdditiveGaugeKeysST, AdditiveGaugeKeysMT>;
+
+using AdditiveGaugeKeys = tc::key_set_union_t<AdditiveGaugeKeysST, AdditiveGaugeKeysMT>;
 
 struct AdditiveGaugeShard {
 private:
@@ -59,13 +75,16 @@ private:
 public:
   static void sync(gauge_t& global, const AdditiveGaugeShard& shard);
 
-  FORCE_INLINE void    post_sync() { last_synced_ = current_; }
-  FORCE_INLINE void    set(gauge_t val) { current_ = val; }
-  FORCE_INLINE gauge_t current() { return current_; }
+  TSKV_INLINE void    post_sync() { last_synced_ = current_; }
+  TSKV_INLINE void    set(gauge_t val) { current_ = val; }
+  TSKV_INLINE gauge_t current() { return current_; }
 };
 
 void AdditiveGaugeShard::sync(gauge_t& global, const AdditiveGaugeShard& shard)
 {
+  // global tracks the sum of last_synced_ per shard;
+  // thread sync adjusts global by the difference between current_ and last_synced_.
+
   if (shard.current_ >= shard.last_synced_) {
     const auto delta = shard.current_ - shard.last_synced_;
     global += delta;
@@ -98,7 +117,7 @@ struct ThreadLocalMetrics {
 
 void ThreadLocalMetrics::post_sync()
 {
-  counters = {}; // zero every counter
+  counters.data.fill(0);
 
   for (AdditiveGaugeShard& shard : additive_gauges.data) {
     shard.post_sync();
@@ -116,8 +135,8 @@ inline ThreadLocalMetrics& local_metrics()
 //==============================================================================
 
 struct GlobalMetrics {
-  tc::key_array<counter_t, CounterKeys>     counters        = {};
-  tc::key_array<gauge_t, AdditiveGaugeKeys> additive_gauges = {};
+  tc::key_array<counter_t, CounterKeys>     counters{};
+  tc::key_array<gauge_t, AdditiveGaugeKeys> additive_gauges{};
 
   void sync_with(const ThreadLocalMetrics& local);
 };
@@ -224,49 +243,49 @@ using clock     = std::chrono::steady_clock;
 using counter_t = counter_t;
 using gauge_t   = gauge_t;
 
-FORCE_INLINE void print()
+TSKV_INLINE void print()
 {
   detail::print();
 }
 
-FORCE_INLINE void global_reset() // for testing purposes only!
+TSKV_INLINE void global_reset() // for testing purposes only!
 {
   std::scoped_lock lock(detail::global_metrics_mutex);
   detail::global_metrics = detail::GlobalMetrics();
 }
 
-FORCE_INLINE void flush_thread(clock::duration min_interval = 1s)
+TSKV_INLINE void flush_thread(clock::duration min_interval = 1s)
 {
   detail::flush_thread(min_interval);
 }
 
 template <tc::string_literal K>
-FORCE_INLINE void add_counter(counter_t n) noexcept
+TSKV_INLINE void add_counter(counter_t n) noexcept
 {
   detail::add_counter<K>(n);
 }
 
 template <tc::string_literal K>
-FORCE_INLINE void inc_counter() noexcept
+TSKV_INLINE void inc_counter() noexcept
 {
   add_counter<K>(1);
 }
 
 template <tc::string_literal K>
-FORCE_INLINE counter_t get_counter() noexcept
+TSKV_INLINE counter_t get_counter() noexcept
 {
   std::scoped_lock lock(detail::global_metrics_mutex);
   return detail::global_metrics.counters.get<K>();
 }
 
 template <tc::string_literal K>
-FORCE_INLINE void set_gauge(gauge_t n) noexcept
+TSKV_INLINE void set_gauge(gauge_t n) noexcept
 {
   detail::set_gauge<K>(n);
 }
 
 template <tc::string_literal K>
-FORCE_INLINE gauge_t get_gauge() noexcept
+TSKV_INLINE gauge_t get_gauge() noexcept
 {
   std::scoped_lock lock(detail::global_metrics_mutex);
   return detail::global_metrics.additive_gauges.get<K>();

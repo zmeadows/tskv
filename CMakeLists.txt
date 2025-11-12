@@ -14,6 +14,8 @@ if(NOT TSKV_GIT_RESULT EQUAL 0 OR TSKV_GIT_SHA STREQUAL "")
   set(TSKV_GIT_SHA "nogit")
 endif()
 
+set(TSKV_PUBLIC_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/include")
+
 # UTC timestamp
 string(TIMESTAMP TSKV_BUILD_UTC "%Y-%m-%dT%H:%M:%SZ" UTC)
 

@@ -1,8 +1,8 @@
 #include <doctest.h>
 
-import net.utils;
+import tskv.net.utils;
 
-TEST_SUITE("net.utils")
+TEST_SUITE("tskv.net.utils")
 {
   TEST_CASE("is_valid_port")
   {

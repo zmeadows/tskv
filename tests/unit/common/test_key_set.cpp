@@ -1,6 +1,6 @@
 #include <doctest.h>
 
-import common.key_set;
+import tskv.common.key_set;
 
 namespace tc = tskv::common;
 
@@ -17,7 +17,7 @@ static_assert(KS::index_of<"b">() == 1);
 static_assert(KS::index_of<"c">() == 2);
 } // namespace
 
-TEST_SUITE("common.key_set")
+TEST_SUITE("tskv.common.key_set")
 {
 
   TEST_CASE("size")

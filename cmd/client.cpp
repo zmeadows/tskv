@@ -6,11 +6,11 @@
 
 #include "macros.hpp"
 
-import common.enum_traits;
-import storage.wal;
-import cmd.args;
-import cmd.version;
-import net.utils;
+import tskv.common.enum_traits;
+import tskv.storage.wal;
+import tskv.cmd.args;
+import tskv.cmd.version;
+import tskv.net.utils;
 
 namespace tc  = tskv::common;
 namespace ts  = tskv::storage;

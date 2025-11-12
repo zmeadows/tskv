@@ -4,5 +4,13 @@ target_sources(
   PUBLIC FILE_SET
          CXX_MODULES
          FILES
+         channel.ixx
+         reactor.ixx
+         server.ixx
          socket.ixx
-         utils.ixx)
+         utils.ixx
+)
+
+target_link_libraries(
+  tskv_net
+  PRIVATE tskv_common)
