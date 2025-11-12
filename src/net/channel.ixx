@@ -4,8 +4,12 @@ module;
 
 #include <cassert>
 #include <cerrno>
+#include <concepts>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <netdb.h>
 #include <numeric>
@@ -268,7 +272,7 @@ public:
   {
     assert(socket_state_ != SocketState::Closed && "handling events on closed socket");
 
-    if (event_mask & (EPOLLERR | EPOLLHUP)) {
+    if (event_mask & EPOLLERR) {
       socket_state_ = SocketState::Aborting;
       handle_error_event();
       return;
@@ -276,16 +280,23 @@ public:
 
     ChannelIO<Proto> io(*this);
 
-    if ((event_mask & EPOLLIN) && fill_rx_buffer() > 0) {
-      proto_.on_read(io);
+    // Always try to drain readable data if EPOLLIN or HUP/RDHUP are set.
+    const bool want_read = event_mask & (EPOLLIN | EPOLLHUP | EPOLLRDHUP);
+    if (want_read && can_read()) {
+      const std::size_t received = fill_rx_buffer();
+      if (received > 0) {
+        proto_.on_read(io);
+      }
     }
 
     if ((event_mask & EPOLLOUT) && socket_state_ != SocketState::Aborting) {
       (void)flush_tx_buffer();
     }
 
-    if (event_mask & EPOLLRDHUP) {
-      TSKV_INVARIANT(socket_state_ == SocketState::Draining, "Should have hit EOF on recv");
+    if (event_mask & (EPOLLHUP | EPOLLRDHUP) && socket_state_ == SocketState::Running) {
+      // Peer won’t send more. If we already hit recv() == 0, fill_rx_buffer()
+      // may have already set Draining; otherwise, do it here.
+      socket_state_ = SocketState::Draining;
     }
   }
 
