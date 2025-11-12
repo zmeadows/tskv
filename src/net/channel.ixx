@@ -43,12 +43,16 @@ concept ProtocolFor = requires(P p, IO& io) {
 
 export namespace tskv::net {
 
+enum class SendResult : std::uint8_t { Ok, WouldBlock, Closed };
+
 template <class Proto>
 class ChannelIO;
 
 template <class Proto>
 concept Protocol = ProtocolFor<Proto, ChannelIO<Proto>>;
 
+// TODO[@zmeadows][P0]: re-organize public/private data/method order
+template <Protocol Proto>
 struct Channel {
 private:
   static constexpr auto TX_BUF_SIZE = 4096;
@@ -81,15 +85,9 @@ private:
 
   SocketState socket_state_ = SocketState::Closed;
 
-  // server-specific behavior (will be simple echo at first)
-  void handle_read_event() noexcept
-  {
-    auto out_span = tx_buf_.writable_span();
+  Proto proto_;
 
-    const std::size_t byte_count = rx_buf_.read_into(out_span);
-
-    tx_buf_.commit(byte_count);
-  }
+  friend class ChannelIO<Proto>; // allow IO façade to access internals
 
   TSKV_COLD_PATH void handle_error_event() noexcept
   {
@@ -215,6 +213,28 @@ private:
     }
   }
 
+  [[nodiscard]] TSKV_INLINE std::span<const std::byte> rx_span() const noexcept
+  {
+    return rx_buf_.readable_span();
+  }
+
+  TSKV_INLINE void rx_consume(std::size_t nbytes) noexcept { rx_buf_.consume(nbytes); }
+
+  [[nodiscard]] SendResult tx_send(std::span<const std::byte> data) noexcept
+  {
+    if (socket_state_ == SocketState::Closed) [[unlikely]] {
+      return SendResult::Closed;
+    }
+
+    if (data.size() > tx_buf_.free_space()) {
+      return SendResult::WouldBlock;
+    }
+
+    (void)tx_buf_.write_from(data);
+
+    return SendResult::Ok;
+  }
+
 public:
   // CONTRACT: fd is a valid/open socket file descriptor
   void attach(int client_fd) noexcept
@@ -254,8 +274,10 @@ public:
       return;
     }
 
+    ChannelIO<Proto> io(*this);
+
     if ((event_mask & EPOLLIN) && fill_rx_buffer() > 0) {
-      handle_read_event();
+      proto_.on_read(io);
     }
 
     if ((event_mask & EPOLLOUT) && socket_state_ != SocketState::Aborting) {
@@ -278,6 +300,39 @@ public:
   }
 };
 
+template <class Proto>
+class ChannelIO {
+public:
+  ChannelIO() = delete;
+  explicit ChannelIO(Channel<Proto>& ch) : ch_(ch) {}
+
+  [[nodiscard]] TSKV_INLINE std::span<const std::byte> rx_span() const noexcept
+  {
+    return ch_.rx_span();
+  }
+
+  [[nodiscard]] TSKV_INLINE SendResult tx_send(std::span<const std::byte> data) noexcept
+  {
+    return ch_.tx_send(data);
+  }
+
+  TSKV_INLINE void rx_consume(std::size_t nbytes) noexcept { ch_.rx_consume(nbytes); }
+
+private:
+  Channel<Proto>& ch_;
+};
+
+struct EchoProtocol {
+  void on_read(ChannelIO<EchoProtocol>& io)
+  {
+    auto rx_bytes = io.rx_span();
+    if (io.tx_send(rx_bytes) == SendResult::Ok) [[likely]] {
+      io.rx_consume(rx_bytes.size());
+    }
+  }
+};
+
+template <Protocol Proto>
 struct ChannelPool {
 private:
   struct Chunk {
@@ -285,7 +340,7 @@ private:
     static_assert(CHUNK_SIZE <= std::numeric_limits<std::uint16_t>::max(),
       "CHUNK_SIZE too large for uint16_t indices");
 
-    Channel slots_[CHUNK_SIZE]{};
+    Channel<Proto> slots_[CHUNK_SIZE]{};
 
     // free_stack_[0..free_top_-1] contains indices of currently free slots.
     std::uint16_t free_stack_[CHUNK_SIZE]{};
@@ -302,14 +357,14 @@ private:
 
     [[nodiscard]] inline bool full() const noexcept { return free_top_ == 0; }
 
-    [[nodiscard]] Channel* acquire() noexcept
+    [[nodiscard]] Channel<Proto>* acquire() noexcept
     {
       TSKV_INVARIANT(free_top_ > 0, "acquire with full Chunk");
       const std::uint16_t next_free_idx = free_stack_[--free_top_];
       return &slots_[next_free_idx];
     }
 
-    void release(Channel* cptr) noexcept
+    void release(Channel<Proto>* cptr) noexcept
     {
       const std::uint16_t idx = static_cast<std::uint16_t>(cptr - slots_);
       TSKV_INVARIANT(idx < CHUNK_SIZE, "Channel doesn't live in this Chunk");
@@ -319,8 +374,8 @@ private:
   };
 
   struct Handle {
-    Chunk*   chunk   = nullptr;
-    Channel* channel = nullptr;
+    Chunk*          chunk   = nullptr;
+    Channel<Proto>* channel = nullptr;
   };
 
   void allocate_new_chunk()
@@ -355,7 +410,7 @@ public:
 
   ~ChannelPool() { TSKV_INVARIANT(active_.empty(), "destroyed ChannelPool with active channels"); }
 
-  [[nodiscard]] Channel* lookup(int fd) const noexcept
+  [[nodiscard]] Channel<Proto>* lookup(int fd) const noexcept
   {
     if (auto it = active_.find(fd); it != active_.end()) [[likely]] {
       return it->second.channel;
@@ -364,7 +419,7 @@ public:
   }
 
   // CONTRACT: returned Channel* only valid between acquire(fd) and release(fd)
-  [[nodiscard]] Channel* acquire(int fd)
+  [[nodiscard]] Channel<Proto>* acquire(int fd)
   {
     assert(fd != -1 && "INVALID ARGS: poisoned socket file descriptor (fd = -1)");
 
@@ -374,7 +429,7 @@ public:
 
     Chunk* chunk = nonfull_chunks_.back();
 
-    Channel* channel = chunk->acquire();
+    Channel<Proto>* channel = chunk->acquire();
 
     try { // emplace can throw
       auto [it, inserted] = active_.emplace(fd, Handle{chunk, channel});
@@ -419,5 +474,4 @@ public:
     active_.erase(it);
   }
 };
-
 } // namespace tskv::net

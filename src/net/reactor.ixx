@@ -45,7 +45,7 @@ int register_epoll_timer(
   return timer_fd;
 }
 
-void Reactor::on_timer_event()
+void Reactor<Proto>::on_timer_event()
 {
   uint64_t expirations;
   ssize_t  s = read(timer_fd_, &expirations, sizeof(uint64_t));
@@ -60,12 +60,14 @@ void Reactor::on_timer_event()
 
 export namespace tskv::net {
 
+template <Protocol Proto>
 struct Reactor {
 private:
   static constexpr std::size_t EVENT_BUFSIZE = 128;
 
+  ChannelPool<Proto> pool_;
+
   epoll_event evt_buffer_[EVENT_BUFSIZE]{};
-  ChannelPool pool_;
 
   int  epoll_fd_       = -1; // owning
   int  listener_fd_    = -1; // non-owning
@@ -74,7 +76,7 @@ private:
   Reactor(const Reactor&)            = delete;
   Reactor& operator=(const Reactor&) = delete;
 
-  void on_channel_event(Channel* channel, std::uint32_t event_mask);
+  void on_channel_event(Channel<Proto>* channel, std::uint32_t event_mask);
   void on_listener_event();
 
 public:
@@ -86,14 +88,16 @@ public:
   void run();
 };
 
-Reactor::Reactor()
+template <Protocol Proto>
+Reactor<Proto>::Reactor()
 {
   epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
   TSKV_LOG_INFO("epoll_fd_ = {}", epoll_fd_);
   TSKV_INVARIANT(epoll_fd_ != -1, "Failed to create epoll instance.");
 }
 
-Reactor::~Reactor()
+template <Protocol Proto>
+Reactor<Proto>::~Reactor()
 {
   if (epoll_fd_ != -1) {
     close(epoll_fd_);
@@ -105,7 +109,8 @@ Reactor::~Reactor()
   stop_requested_ = false;
 }
 
-void Reactor::add_listener(int listener_fd)
+template <Protocol Proto>
+void Reactor<Proto>::add_listener(int listener_fd)
 {
   TSKV_INVARIANT(listener_fd_ == -1, "multiple listeners not currently supported");
 
@@ -124,7 +129,8 @@ void Reactor::add_listener(int listener_fd)
   listener_fd_ = listener_fd;
 }
 
-void Reactor::on_channel_event(Channel* channel, std::uint32_t event_mask)
+template <Protocol Proto>
+void Reactor<Proto>::on_channel_event(Channel<Proto>* channel, std::uint32_t event_mask)
 {
   const int client_fd = channel->fd();
 
@@ -148,7 +154,8 @@ void Reactor::on_channel_event(Channel* channel, std::uint32_t event_mask)
   epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event);
 }
 
-void Reactor::on_listener_event()
+template <Protocol Proto>
+void Reactor<Proto>::on_listener_event()
 {
   sockaddr_storage client_addr{};
   socklen_t        client_addr_size = sizeof client_addr;
@@ -175,7 +182,7 @@ void Reactor::on_listener_event()
       continue;
     }
 
-    Channel* channel = pool_.acquire(client_fd);
+    Channel<Proto>* channel = pool_.acquire(client_fd);
     channel->attach(client_fd);
 
     struct epoll_event event{};
@@ -193,7 +200,8 @@ void Reactor::on_listener_event()
   }
 }
 
-void Reactor::poll_once()
+template <Protocol Proto>
+void Reactor<Proto>::poll_once()
 {
   int nevents;
   do {
@@ -207,7 +215,7 @@ void Reactor::poll_once()
     const int           event_fd   = evt.data.fd;
     const std::uint32_t event_mask = evt.events;
 
-    if (Channel* channel = pool_.lookup(event_fd); channel != nullptr) [[likely]] {
+    if (Channel<Proto>* channel = pool_.lookup(event_fd); channel != nullptr) [[likely]] {
       on_channel_event(channel, event_mask);
     }
     else if (event_fd == listener_fd_) {
@@ -219,7 +227,8 @@ void Reactor::poll_once()
   }
 }
 
-void Reactor::run()
+template <Protocol Proto>
+void Reactor<Proto>::run()
 {
   while (true) {
     poll_once();
