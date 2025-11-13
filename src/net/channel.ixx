@@ -268,10 +268,8 @@ public:
   {
     if (socket_state_ == SocketState::Running) {
       socket_state_ = SocketState::Draining;
-
-      // TODO[@zmeadows][P0]: why *not* do this?
-      // stop reading at kernel level; we already guard reads via can_read()
-      // ::shutdown(fd_, SHUT_RD);
+      // stop reading at kernel level, as we won't be reading anymore regardless
+      ::shutdown(fd_, SHUT_RD);
     }
   }
 
