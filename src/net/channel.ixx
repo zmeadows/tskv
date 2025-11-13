@@ -45,6 +45,7 @@ template <class P, class IO>
 concept ProtocolFor = requires(P p, IO& io, int ec) {
   { p.on_read(io) } -> std::same_as<void>;
   { p.on_error(io, ec) } -> std::same_as<void>;
+  { p.on_close(io) } -> std::same_as<void>;
 };
 
 export namespace tskv::net {
@@ -257,6 +258,23 @@ public:
     socket_state_ = SocketState::Closed;
   }
 
+  void notify_close() noexcept
+  {
+    ChannelIO<Proto> io(*this);
+    proto_.on_close(io);
+  }
+
+  void begin_shutdown() noexcept
+  {
+    if (socket_state_ == SocketState::Running) {
+      socket_state_ = SocketState::Draining;
+
+      // TODO[@zmeadows][P0]: why *not* do this?
+      // stop reading at kernel level; we already guard reads via can_read()
+      // ::shutdown(fd_, SHUT_RD);
+    }
+  }
+
   [[nodiscard]] inline int fd() const noexcept { return fd_; }
 
   [[nodiscard]] inline bool should_close() const noexcept
@@ -268,6 +286,7 @@ public:
     return false;
   }
 
+  // TODO[@zmeadows][P0]: need to code-review this again
   void handle_events(std::uint32_t event_mask)
   {
     assert(socket_state_ != SocketState::Closed && "handling events on closed socket");
@@ -350,6 +369,7 @@ struct EchoProtocol {
   }
 
   void on_error(ChannelIO<EchoProtocol>&, int) {}
+  void on_close(ChannelIO<EchoProtocol>&) {}
 };
 
 template <Protocol Proto>
@@ -438,6 +458,8 @@ public:
     return nullptr;
   }
 
+  [[nodiscard]] std::size_t active_count() const noexcept { return active_.size(); }
+
   // CONTRACT: returned Channel* only valid between acquire(fd) and release(fd)
   [[nodiscard]] Channel<Proto>* acquire(int fd)
   {
@@ -495,7 +517,7 @@ public:
   }
 
   template <typename Fn>
-  void for_each_channel(Fn&& fn)
+  void for_each(Fn&& fn)
   {
     for (auto& [_, handle] : active_) {
       fn(handle.channel);
