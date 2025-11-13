@@ -1,6 +1,6 @@
 module;
 
-// TODO[@zmeadows][P0]: add top-level comment
+// TODO[@zmeadows][P0]: add top-level comment for v0.2
 
 #include <cassert>
 #include <cerrno>
@@ -42,13 +42,15 @@ inline std::size_t ceil_div(std::size_t x, std::size_t y)
 }
 
 template <class P, class IO>
-concept ProtocolFor = requires(P p, IO& io) {
+concept ProtocolFor = requires(P p, IO& io, int ec) {
   { p.on_read(io) } -> std::same_as<void>;
+  { p.on_error(io, ec) } -> std::same_as<void>;
+  { p.on_close(io) } -> std::same_as<void>;
 };
 
 export namespace tskv::net {
 
-enum class SendResult : std::uint8_t { Full, Partial, Closed };
+enum class SendResult : std::uint8_t { Full, Partial, Forbidden };
 
 template <class Proto>
 class ChannelIO;
@@ -56,7 +58,6 @@ class ChannelIO;
 template <class Proto>
 concept Protocol = ProtocolFor<Proto, ChannelIO<Proto>>;
 
-// TODO[@zmeadows][P0]: re-organize public/private data/method order
 template <Protocol Proto>
 struct Channel {
 private:
@@ -73,6 +74,14 @@ private:
     Closed
   };
 
+  int fd_ = -1;
+
+  SocketState socket_state_ = SocketState::Closed;
+
+  Proto proto_;
+
+  friend class ChannelIO<Proto>; // allow IO façade to access internals
+
   [[nodiscard]] inline bool can_read() const noexcept
   {
     return socket_state_ == SocketState::Running && !rx_buf_.full();
@@ -82,23 +91,18 @@ private:
   {
     const bool valid_state =
       socket_state_ == SocketState::Running || socket_state_ == SocketState::Draining;
-    const bool have_data = !tx_buf_.empty();
-    return valid_state && have_data;
+    return valid_state && !tx_buf_.empty();
   }
-
-  int fd_ = -1;
-
-  SocketState socket_state_ = SocketState::Closed;
-
-  Proto proto_;
-
-  friend class ChannelIO<Proto>; // allow IO façade to access internals
 
   TSKV_COLD_PATH void handle_error_event() noexcept
   {
+    socket_state_ = SocketState::Aborting;
+
     int       err = 0;
     socklen_t len = sizeof(err);
     const int opc = getsockopt(fd_, SOL_SOCKET, SO_ERROR, &err, &len);
+
+    ::shutdown(fd_, SHUT_RDWR);
 
     if (opc != 0 || err == 0) {
       return;
@@ -126,6 +130,9 @@ private:
         metrics::inc_counter<"net.socket_error.other">();
         break;
     }
+
+    ChannelIO<Proto> io(*this);
+    proto_.on_error(io, err);
   }
 
   std::size_t try_flush_tx_buffer()
@@ -136,20 +143,17 @@ private:
 
     std::size_t bytes_sent = 0;
 
-    while (true) {
+    for (;;) {
       std::span<const std::byte> tx_span = tx_buf_.readable_span();
 
       const ssize_t send_rc = send(fd_, tx_span.data(), tx_span.size(), 0);
 
-      if (send_rc > 0) {
+      if (send_rc >= 0) {
         tx_buf_.consume(send_rc);
         bytes_sent += send_rc;
         if (tx_buf_.empty()) {
-          return bytes_sent;
+          break;
         }
-      }
-      else if (send_rc == 0) {
-        return bytes_sent;
       }
       else if (send_rc == -1) {
         switch (errno) {
@@ -157,21 +161,20 @@ private:
           case EWOULDBLOCK:
 #endif
           case EAGAIN: {
-            return bytes_sent;
+            break;
           }
           case EINTR: {
             continue;
           }
           default: {
-            socket_state_ = SocketState::Aborting;
             handle_error_event();
-            return bytes_sent;
+            break;
           }
         }
       }
-
-      return 0;
     }
+
+    return bytes_sent;
   }
 
   std::size_t try_fill_rx_buffer()
@@ -206,7 +209,6 @@ private:
           case EINTR:
             continue;
           default: {
-            socket_state_ = SocketState::Aborting;
             handle_error_event();
             return bytes_received;
           }
@@ -226,8 +228,9 @@ private:
 
   [[nodiscard]] std::pair<std::size_t, SendResult> tx_send(std::span<const std::byte> data) noexcept
   {
-    if (socket_state_ == SocketState::Closed) [[unlikely]] {
-      return {0, SendResult::Closed};
+    if (socket_state_ == SocketState::Closed || socket_state_ == SocketState::Aborting)
+      [[unlikely]] {
+      return {0, SendResult::Forbidden};
     }
 
     const std::size_t bytes_queued = tx_buf_.write_from(data);
@@ -253,6 +256,21 @@ public:
     socket_state_ = SocketState::Closed;
   }
 
+  void notify_close() noexcept
+  {
+    ChannelIO<Proto> io(*this);
+    proto_.on_close(io);
+  }
+
+  void begin_shutdown() noexcept
+  {
+    if (socket_state_ == SocketState::Running) {
+      socket_state_ = SocketState::Draining;
+      // stop reading at kernel level, as we won't be reading anymore regardless
+      ::shutdown(fd_, SHUT_RD);
+    }
+  }
+
   [[nodiscard]] inline int fd() const noexcept { return fd_; }
 
   [[nodiscard]] inline bool should_close() const noexcept
@@ -269,26 +287,41 @@ public:
     assert(socket_state_ != SocketState::Closed && "handling events on closed socket");
 
     if (event_mask & EPOLLERR) {
-      socket_state_ = SocketState::Aborting;
       handle_error_event();
       return;
     }
 
     ChannelIO<Proto> io(*this);
 
-    // Always try to drain readable data if EPOLLIN or HUP/RDHUP are set.
+    // Drain readable side fully, respecting ET semantics
     if (event_mask & (EPOLLIN | EPOLLHUP | EPOLLRDHUP)) {
-      const std::size_t nrecv = try_fill_rx_buffer();
-      metrics::add_counter<"net.bytes_received">(nrecv);
+      for (;;) {
+        // 1) Pull everything we can (until EAGAIN or buffer full)
+        const std::size_t nrecv = try_fill_rx_buffer();
+        metrics::add_counter<"net.bytes_received">(nrecv);
+
+        // 2) If the rx buffer has data to process, let the protocol process/consume it
+        const std::size_t rx_used_before = rx_buf_.used_space();
+        if (!rx_buf_.empty()) {
+          proto_.on_read(io); // expected to rx_consume()
+        }
+        const bool proto_consumed = rx_buf_.used_space() < rx_used_before;
+
+        // 3) Try to flush any responses as we go (good for backpressure)
+        if (can_write()) {
+          (void)try_flush_tx_buffer();
+        }
+
+        // 4) Stop when we made no forward progress
+        const bool rx_blocked = nrecv == 0; // either EAGAIN or not allowed to read
+        if (rx_blocked && !proto_consumed) {
+          break;
+        }
+      }
     }
 
-    bool force_try_flush = false;
-    if (!rx_buf_.empty()) {
-      force_try_flush = true;
-      proto_.on_read(io);
-    }
-
-    if (event_mask & EPOLLOUT || force_try_flush) {
+    // Pure-write wakeup from epoll
+    if (event_mask & EPOLLOUT) {
       const std::size_t nsent = try_flush_tx_buffer();
       metrics::add_counter<"net.bytes_sent">(nsent);
     }
@@ -340,10 +373,13 @@ struct EchoProtocol {
     auto rx_bytes = io.rx_span();
 
     const auto [bytes_sent, result] = io.tx_send(rx_bytes);
-    if (bytes_sent < 0) [[likely]] {
+    if (bytes_sent > 0) [[likely]] {
       io.rx_consume(bytes_sent);
     }
   }
+
+  void on_error(ChannelIO<EchoProtocol>&, int) {}
+  void on_close(ChannelIO<EchoProtocol>&) {}
 };
 
 template <Protocol Proto>
@@ -432,6 +468,8 @@ public:
     return nullptr;
   }
 
+  [[nodiscard]] inline bool empty() const noexcept { return active_.empty(); }
+
   // CONTRACT: returned Channel* only valid between acquire(fd) and release(fd)
   [[nodiscard]] Channel<Proto>* acquire(int fd)
   {
@@ -486,6 +524,14 @@ public:
     }
 
     active_.erase(it);
+  }
+
+  template <typename Fn>
+  void for_each(Fn&& fn)
+  {
+    for (auto& [_, handle] : active_) {
+      fn(handle.channel);
+    }
   }
 };
 } // namespace tskv::net
