@@ -361,7 +361,6 @@ void Reactor<Proto>::poll_once()
   }
 }
 
-// TODO[@zmeadows][P0]: need to handle carefully how often/when this is called
 template <Protocol Proto>
 void Reactor<Proto>::sweep_closing_channels() noexcept
 {

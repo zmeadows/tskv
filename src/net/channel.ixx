@@ -50,7 +50,7 @@ concept ProtocolFor = requires(P p, IO& io, int ec) {
 
 export namespace tskv::net {
 
-enum class SendResult : std::uint8_t { Full, Partial, Closed };
+enum class SendResult : std::uint8_t { Full, Partial, Forbidden };
 
 template <class Proto>
 class ChannelIO;
@@ -58,7 +58,6 @@ class ChannelIO;
 template <class Proto>
 concept Protocol = ProtocolFor<Proto, ChannelIO<Proto>>;
 
-// TODO[@zmeadows][P0]: re-organize public/private data/method order
 template <Protocol Proto>
 struct Channel {
 private:
@@ -75,6 +74,14 @@ private:
     Closed
   };
 
+  int fd_ = -1;
+
+  SocketState socket_state_ = SocketState::Closed;
+
+  Proto proto_;
+
+  friend class ChannelIO<Proto>; // allow IO façade to access internals
+
   [[nodiscard]] inline bool can_read() const noexcept
   {
     return socket_state_ == SocketState::Running && !rx_buf_.full();
@@ -84,23 +91,18 @@ private:
   {
     const bool valid_state =
       socket_state_ == SocketState::Running || socket_state_ == SocketState::Draining;
-    const bool have_data = !tx_buf_.empty();
-    return valid_state && have_data;
+    return valid_state && !tx_buf_.empty();
   }
-
-  int fd_ = -1;
-
-  SocketState socket_state_ = SocketState::Closed;
-
-  Proto proto_;
-
-  friend class ChannelIO<Proto>; // allow IO façade to access internals
 
   TSKV_COLD_PATH void handle_error_event() noexcept
   {
+    socket_state_ = SocketState::Aborting;
+
     int       err = 0;
     socklen_t len = sizeof(err);
     const int opc = getsockopt(fd_, SOL_SOCKET, SO_ERROR, &err, &len);
+
+    ::shutdown(fd_, SHUT_RDWR);
 
     if (opc != 0 || err == 0) {
       return;
@@ -141,20 +143,17 @@ private:
 
     std::size_t bytes_sent = 0;
 
-    while (true) {
+    for (;;) {
       std::span<const std::byte> tx_span = tx_buf_.readable_span();
 
       const ssize_t send_rc = send(fd_, tx_span.data(), tx_span.size(), 0);
 
-      if (send_rc > 0) {
+      if (send_rc >= 0) {
         tx_buf_.consume(send_rc);
         bytes_sent += send_rc;
         if (tx_buf_.empty()) {
-          return bytes_sent;
+          break;
         }
-      }
-      else if (send_rc == 0) {
-        return bytes_sent;
       }
       else if (send_rc == -1) {
         switch (errno) {
@@ -162,21 +161,20 @@ private:
           case EWOULDBLOCK:
 #endif
           case EAGAIN: {
-            return bytes_sent;
+            break;
           }
           case EINTR: {
             continue;
           }
           default: {
-            socket_state_ = SocketState::Aborting;
             handle_error_event();
-            return bytes_sent;
+            break;
           }
         }
       }
-
-      return 0;
     }
+
+    return bytes_sent;
   }
 
   std::size_t try_fill_rx_buffer()
@@ -211,7 +209,6 @@ private:
           case EINTR:
             continue;
           default: {
-            socket_state_ = SocketState::Aborting;
             handle_error_event();
             return bytes_received;
           }
@@ -231,8 +228,9 @@ private:
 
   [[nodiscard]] std::pair<std::size_t, SendResult> tx_send(std::span<const std::byte> data) noexcept
   {
-    if (socket_state_ == SocketState::Closed) [[unlikely]] {
-      return {0, SendResult::Closed};
+    if (socket_state_ == SocketState::Closed || socket_state_ == SocketState::Aborting)
+      [[unlikely]] {
+      return {0, SendResult::Forbidden};
     }
 
     const std::size_t bytes_queued = tx_buf_.write_from(data);
@@ -289,7 +287,6 @@ public:
     assert(socket_state_ != SocketState::Closed && "handling events on closed socket");
 
     if (event_mask & EPOLLERR) {
-      socket_state_ = SocketState::Aborting;
       handle_error_event();
       return;
     }
@@ -471,7 +468,7 @@ public:
     return nullptr;
   }
 
-  [[nodiscard]] std::size_t empty() const noexcept { return active_.empty(); }
+  [[nodiscard]] inline bool empty() const noexcept { return active_.empty(); }
 
   // CONTRACT: returned Channel* only valid between acquire(fd) and release(fd)
   [[nodiscard]] Channel<Proto>* acquire(int fd)
