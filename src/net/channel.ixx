@@ -286,7 +286,6 @@ public:
     return false;
   }
 
-  // TODO[@zmeadows][P0]: need to code-review this again
   void handle_events(std::uint32_t event_mask)
   {
     assert(socket_state_ != SocketState::Closed && "handling events on closed socket");
@@ -299,19 +298,35 @@ public:
 
     ChannelIO<Proto> io(*this);
 
-    // Always try to drain readable data if EPOLLIN or HUP/RDHUP are set.
+    // Drain readable side fully, respecting ET semantics
     if (event_mask & (EPOLLIN | EPOLLHUP | EPOLLRDHUP)) {
-      const std::size_t nrecv = try_fill_rx_buffer();
-      metrics::add_counter<"net.bytes_received">(nrecv);
+      for (;;) {
+        // 1) Pull everything we can (until EAGAIN or buffer full)
+        const std::size_t nrecv = try_fill_rx_buffer();
+        metrics::add_counter<"net.bytes_received">(nrecv);
+
+        // 2) If the rx buffer has data to process, let the protocol process/consume it
+        const std::size_t rx_used_before = rx_buf_.used_space();
+        if (!rx_buf_.empty()) {
+          proto_.on_read(io); // expected to rx_consume()
+        }
+        const bool proto_consumed = rx_buf_.used_space() < rx_used_before;
+
+        // 3) Try to flush any responses as we go (good for backpressure)
+        if (can_write()) {
+          (void)try_flush_tx_buffer();
+        }
+
+        // 4) Stop when we made no forward progress
+        const bool rx_blocked = nrecv == 0; // either EAGAIN or not allowed to read
+        if (rx_blocked && !proto_consumed) {
+          break;
+        }
+      }
     }
 
-    bool force_try_flush = false;
-    if (!rx_buf_.empty()) {
-      force_try_flush = true;
-      proto_.on_read(io);
-    }
-
-    if (event_mask & EPOLLOUT || force_try_flush) {
+    // Pure-write wakeup from epoll
+    if (event_mask & EPOLLOUT) {
       const std::size_t nsent = try_flush_tx_buffer();
       metrics::add_counter<"net.bytes_sent">(nsent);
     }

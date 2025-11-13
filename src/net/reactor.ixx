@@ -351,9 +351,11 @@ void Reactor<Proto>::poll_once()
     }
     else if (event_fd == wakeup_fd_) [[unlikely]] {
       on_wakeup_event();
+      sweep_closing_channels();
     }
     else if (event_fd == signal_fd_) [[unlikely]] {
       on_signal_event();
+      sweep_closing_channels();
     }
     else {
       TSKV_LOG_WARN("unknown event file descriptor encountered: {}", event_fd);
@@ -361,7 +363,7 @@ void Reactor<Proto>::poll_once()
   }
 }
 
-// TODO[@zmeadows][P0]: create timer for closing channel cleanup and execute this on a beat
+// TODO[@zmeadows][P0]: need to handle carefully how often/when this is called
 template <Protocol Proto>
 void Reactor<Proto>::sweep_closing_channels() noexcept
 {
