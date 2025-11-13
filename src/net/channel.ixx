@@ -130,7 +130,7 @@ private:
     }
 
     ChannelIO<Proto> io(*this);
-    proto_.on_error(io, errno);
+    proto_.on_error(io, err);
   }
 
   std::size_t try_flush_tx_buffer()
