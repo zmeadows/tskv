@@ -154,10 +154,6 @@ Reactor<Proto>::Reactor()
 template <Protocol Proto>
 Reactor<Proto>::~Reactor()
 {
-  if (epoll_fd_ != -1) {
-    ::close(epoll_fd_);
-  }
-
   if (listener_fd_ != -1) {
     close_listener();
   }
@@ -170,7 +166,9 @@ Reactor<Proto>::~Reactor()
     ::close(signal_fd_);
   }
 
-  shutting_down_ = false;
+  if (epoll_fd_ != -1) {
+    ::close(epoll_fd_);
+  }
 }
 
 template <Protocol Proto>
