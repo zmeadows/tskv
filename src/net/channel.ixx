@@ -1,6 +1,6 @@
 module;
 
-// TODO[@zmeadows][P0]: add top-level comment
+// TODO[@zmeadows][P0]: add top-level comment for v0.2
 
 #include <cassert>
 #include <cerrno>
@@ -42,8 +42,9 @@ inline std::size_t ceil_div(std::size_t x, std::size_t y)
 }
 
 template <class P, class IO>
-concept ProtocolFor = requires(P p, IO& io) {
+concept ProtocolFor = requires(P p, IO& io, int ec) {
   { p.on_read(io) } -> std::same_as<void>;
+  { p.on_error(io, ec) } -> std::same_as<void>;
 };
 
 export namespace tskv::net {
@@ -126,6 +127,9 @@ private:
         metrics::inc_counter<"net.socket_error.other">();
         break;
     }
+
+    ChannelIO<Proto> io(*this);
+    proto_.on_error(io, errno);
   }
 
   std::size_t try_flush_tx_buffer()
@@ -340,10 +344,12 @@ struct EchoProtocol {
     auto rx_bytes = io.rx_span();
 
     const auto [bytes_sent, result] = io.tx_send(rx_bytes);
-    if (bytes_sent < 0) [[likely]] {
+    if (bytes_sent > 0) [[likely]] {
       io.rx_consume(bytes_sent);
     }
   }
+
+  void on_error(ChannelIO<EchoProtocol>&, int) {}
 };
 
 template <Protocol Proto>
@@ -486,6 +492,14 @@ public:
     }
 
     active_.erase(it);
+  }
+
+  template <typename Fn>
+  void for_each_channel(Fn&& fn)
+  {
+    for (auto& [_, handle] : active_) {
+      fn(handle.channel);
+    }
   }
 };
 } // namespace tskv::net

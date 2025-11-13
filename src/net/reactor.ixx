@@ -71,11 +71,6 @@ private:
 
   epoll_event evt_buffer_[EVENT_BUFSIZE]{};
 
-  // To support multiple listeners:
-  // * store a small vector of listener fds (each EPOLLIN|EPOLLET-registered)
-  // * tag epoll events (e.g., via event.data.u64 or a pointer wrapper) to distinguish listeners from channels, and
-  // * dispatch `accept4()` on whichever listener produced the event.
-
   int  epoll_fd_       = -1; // owning
   int  listener_fd_    = -1; // non-owning
   bool stop_requested_ = false;
@@ -120,6 +115,10 @@ template <Protocol Proto>
 void Reactor<Proto>::add_listener(int listener_fd)
 {
   TSKV_INVARIANT(listener_fd_ == -1, "multiple listeners not currently supported");
+  // To support multiple listeners:
+  // * store a small vector of listener fds (each EPOLLIN|EPOLLET-registered)
+  // * tag epoll events (e.g., via event.data.u64 or a pointer wrapper) to distinguish listeners from channels, and
+  // * dispatch `accept4()` on whichever listener produced the event.
 
   const int  flags        = fcntl(listener_fd, F_GETFL, 0);
   const bool non_blocking = (flags & O_NONBLOCK) != 0;
@@ -233,8 +232,6 @@ void Reactor<Proto>::poll_once()
     nevents = epoll_wait(epoll_fd_, evt_buffer_, EVENT_BUFSIZE, -1);
   } while (nevents == -1 && errno == EINTR);
 
-  TSKV_INVARIANT(nevents != -1, "failed to poll events from epoll");
-
   for (int ievent = 0; ievent < nevents; ++ievent) {
     const epoll_event&  evt        = evt_buffer_[ievent];
     const int           event_fd   = evt.data.fd;
@@ -255,11 +252,6 @@ void Reactor<Proto>::poll_once()
 template <Protocol Proto>
 void Reactor<Proto>::run()
 {
-  // run() currently blocks forever in epoll_wait; to support graceful shutdown,
-  // wire `stop_requested_` to a wakeup fd (eventfd/timerfd) registered with epoll,
-  // and break the loop when that fd fires. On shutdown, stop accepting, mark
-  // channels for draining (read side closed), flush pending writes, then remove
-  // fds from epoll and close them before returning.
   while (true) {
     poll_once();
   }
