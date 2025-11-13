@@ -42,7 +42,6 @@ void scratch_main()
 
   reactor.add_listener(listen_fd);
 
-  // TODO[@zmeadows][P1]: until reactor has a real exit path, the defer above never runs
   reactor.run();
 }
 
