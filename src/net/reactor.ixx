@@ -283,39 +283,34 @@ void Reactor<Proto>::on_listener_event()
   while (true) {
     sockaddr_storage client_addr{};
     socklen_t        client_addr_size = sizeof client_addr;
-    int client_fd = accept4(listener_fd_, (sockaddr*)&client_addr, &client_addr_size, 0);
+
+    int client_fd = accept4(
+      listener_fd_, (sockaddr*)&client_addr, &client_addr_size, SOCK_NONBLOCK | SOCK_CLOEXEC);
 
     if (client_fd == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
         // done processing new channels, try again later
         return;
       }
-      else {
-        TSKV_LOG_WARN("failed to accept new channel: errno={}", errno);
 
-        switch (errno) {
-          case EMFILE:
-            metrics::inc_counter<"net.accept_error.emfile">();
-            break;
-          case ENFILE:
-            metrics::inc_counter<"net.accept_error.enfile">();
-            break;
-          case ENOBUFS:
-            metrics::inc_counter<"net.accept_error.enobufs">();
-            break;
-          default:
-            metrics::inc_counter<"net.accept_error.other">();
-            break;
-        }
+      TSKV_LOG_WARN("failed to accept new channel: errno={}", errno);
+
+      switch (errno) {
+        case EMFILE:
+          metrics::inc_counter<"net.accept_error.emfile">();
+          break;
+        case ENFILE:
+          metrics::inc_counter<"net.accept_error.enfile">();
+          break;
+        case ENOBUFS:
+          metrics::inc_counter<"net.accept_error.enobufs">();
+          break;
+        default:
+          metrics::inc_counter<"net.accept_error.other">();
+          break;
       }
-    }
 
-    // process valid new channel
-
-    if (!set_socket_nonblocking(client_fd)) {
-      TSKV_LOG_WARN("failed to set client channel socket to nonblocking");
-      ::close(client_fd);
-      continue;
+      return;
     }
 
     Channel<Proto>* channel = pool_.acquire(client_fd);
@@ -329,9 +324,7 @@ void Reactor<Proto>::on_listener_event()
     bool add_client_success = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, client_fd, &event) != -1;
     if (!add_client_success) {
       TSKV_LOG_WARN("failed to add newly accepted client (fd = {}) to epoll watch list", client_fd);
-      channel->detach();
-      pool_.release(client_fd);
-      ::close(client_fd);
+      close_channel(channel);
     }
   }
 }
@@ -390,7 +383,7 @@ template <Protocol Proto>
 void Reactor<Proto>::run()
 {
   while (true) {
-    if (shutting_down_ && pool_.active_count() == 0) {
+    if (shutting_down_ && pool_.empty()) {
       TSKV_LOG_INFO("Shutdown succeeded...");
       return;
     }

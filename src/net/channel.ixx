@@ -458,7 +458,7 @@ public:
     return nullptr;
   }
 
-  [[nodiscard]] std::size_t active_count() const noexcept { return active_.size(); }
+  [[nodiscard]] std::size_t empty() const noexcept { return active_.empty(); }
 
   // CONTRACT: returned Channel* only valid between acquire(fd) and release(fd)
   [[nodiscard]] Channel<Proto>* acquire(int fd)
