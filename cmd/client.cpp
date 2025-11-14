@@ -87,7 +87,7 @@ int main_(int argc, char** argv)
 
   const bool dry_run = args.pop_flag("dry-run");
 
-  args.detect_unused_args();
+  args.enforce_no_unused_args();
 
   if (dry_run) {
     config.print();

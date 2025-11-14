@@ -119,7 +119,7 @@ public:
 
   [[nodiscard]] bool pop_flag(std::string_view flag) noexcept { return _flags.erase(flag) != 0; }
 
-  void detect_unused_args()
+  void enforce_no_unused_args()
   {
     if (_kvs.empty() && _flags.empty()) {
       return;

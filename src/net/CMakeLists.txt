@@ -13,4 +13,4 @@ target_sources(
 
 target_link_libraries(
   tskv_net
-  PRIVATE tskv_common)
+  PRIVATE tskv_common tskv_storage)
