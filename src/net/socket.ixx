@@ -1,6 +1,8 @@
 module;
 
 #include <cassert>
+#include <charconv>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -17,29 +19,20 @@ import tskv.common.logging;
 
 export namespace tskv::net {
 
-bool set_socket_nonblocking(int fd)
-{
-  int flags = fcntl(fd, F_GETFL, 0);
-  if (flags == -1) {
-    return false;
-  }
-
-  if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-    return false;
-  }
-
-  return true;
-}
-
-int start_listener()
+int start_listener(const char* const host, std::uint16_t port)
 {
   addrinfo  hints{};
   addrinfo* servinfo = nullptr;
 
   hints.ai_family   = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM; // TCP
+  hints.ai_socktype = SOCK_STREAM;
 
-  if (int status = getaddrinfo("localhost", "8080", &hints, &servinfo); status != 0) {
+  char portbuf[8]{};
+  auto [ptr, ec] = std::to_chars(portbuf, portbuf + 8, port);
+  TSKV_DEMAND(ec == std::errc{}, "failed to convert port number ({}) to string", port);
+  *ptr = '\0'; // Null-terminate the string in the buffer
+
+  if (int status = getaddrinfo(host, portbuf, &hints, &servinfo); status != 0) {
     const auto errmsg = gai_strerror(status);
     TSKV_LOG_ERROR("getaddrinfo failure: {}", errmsg);
     return -1;
@@ -52,18 +45,13 @@ int start_listener()
       continue;
     }
 
-    int fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    int fd = socket(p->ai_family, p->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC, p->ai_protocol);
     if (fd == -1) {
       continue;
     }
 
     int yes = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
-      ::close(fd);
-      continue;
-    }
-
-    if (!set_socket_nonblocking(fd)) {
       ::close(fd);
       continue;
     }

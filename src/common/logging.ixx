@@ -106,7 +106,7 @@ void log(LogLevel level, std::source_location loc, std::string_view fmt, Args&&.
 
   std::string message;
   try {
-    message = std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...));
+    message = std::vformat(fmt, std::make_format_args(args...));
   }
   catch (...) {
     // Fallback: just copy the raw format string.
@@ -134,14 +134,14 @@ void log(LogLevel level, std::source_location loc, std::string_view fmt, Args&&.
   detail::write_stderr(line);
 }
 
-template <typename... Args>
-[[noreturn]] TSKV_COLD_PATH void log_invariant_failure(
+template <bool ABORT, typename... Args>
+[[noreturn]] TSKV_COLD_PATH void log_terminal_error(
   std::source_location loc, char const* expr_str, std::string_view fmt, Args&&... args) noexcept
 {
   // Build a message describing the invariant that failed.
   std::string user_msg;
   try {
-    user_msg = std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...));
+    user_msg = std::vformat(fmt, std::make_format_args(args...));
   }
   catch (...) {
     user_msg.assign(fmt.begin(), fmt.end());
@@ -149,16 +149,21 @@ template <typename... Args>
 
   std::string combined;
   try {
-    combined = std::format("INVARIANT VIOLATION: {}: {}", expr_str, user_msg);
+    combined = std::format("FATAL: {}: {}", expr_str, user_msg);
   }
   catch (...) {
-    combined = "INVARIANT VIOLATION";
+    combined = "FATAL";
   }
 
   // Reuse the normal logger; double-formatting is fine on this cold path.
   log(LogLevel::Critical, loc, "{}", combined);
 
-  std::abort();
+  if constexpr (ABORT) {
+    std::abort();
+  }
+  else {
+    std::exit(EXIT_FAILURE);
+  }
 }
 
 } // namespace tskv::common

@@ -21,6 +21,7 @@ module;
 
 #include "tskv/common/attributes.hpp"
 
+// TODO[@zmeadows][P1]: add some sort of compile-time switch to fully disable metrics (for benchmarking)
 export module tskv.common.metrics;
 
 import tskv.common.key_array;

@@ -1,7 +1,5 @@
 module;
 
-// TODO[@zmeadows][P0]: add top-level comment for v0.2
-
 #include <cassert>
 #include <cerrno>
 #include <concepts>
@@ -41,6 +39,7 @@ inline std::size_t ceil_div(std::size_t x, std::size_t y)
   return x / y + (x % y != 0);
 }
 
+// TODO[@zmeadows][P2]: stricter requirements: default-constructible, nothrow, etc
 template <class P, class IO>
 concept ProtocolFor = requires(P p, IO& io, int ec) {
   { p.on_read(io) } -> std::same_as<void>;
@@ -67,6 +66,7 @@ private:
   tc::SimpleBuffer<TX_BUF_SIZE> tx_buf_{};
   tc::SimpleBuffer<RX_BUF_SIZE> rx_buf_{};
 
+  // typical life-cycle is Running -> Draining -> Closed. Aborting can come from any state.
   enum class SocketState : std::uint8_t {
     Running, // normal
     Draining, // EOF, flushing TX
@@ -75,6 +75,8 @@ private:
   };
 
   int fd_ = -1;
+
+  std::uint32_t last_events_mask_ = 0;
 
   SocketState socket_state_ = SocketState::Closed;
 
@@ -135,7 +137,7 @@ private:
     proto_.on_error(io, err);
   }
 
-  std::size_t try_flush_tx_buffer()
+  std::size_t try_flush_tx_buffer() noexcept
   {
     if (!can_write()) {
       return 0;
@@ -177,7 +179,7 @@ private:
     return bytes_sent;
   }
 
-  std::size_t try_fill_rx_buffer()
+  std::size_t try_fill_rx_buffer() noexcept
   {
     if (!can_read()) {
       return 0;
@@ -216,7 +218,7 @@ private:
       }
     }
 
-    std::unreachable();
+    return bytes_received;
   }
 
   [[nodiscard]] TSKV_INLINE std::span<const std::byte> rx_span() const noexcept
@@ -273,6 +275,9 @@ public:
 
   [[nodiscard]] inline int fd() const noexcept { return fd_; }
 
+  [[nodiscard]] std::uint32_t get_last_event_mask() const noexcept { return last_events_mask_; }
+  void set_last_event_mask(std::uint32_t new_mask) noexcept { last_events_mask_ = new_mask; }
+
   [[nodiscard]] inline bool should_close() const noexcept
   {
     if (socket_state_ == SocketState::Aborting)
@@ -282,7 +287,7 @@ public:
     return false;
   }
 
-  void handle_events(std::uint32_t event_mask)
+  void handle_events(std::uint32_t event_mask) noexcept
   {
     assert(socket_state_ != SocketState::Closed && "handling events on closed socket");
 
@@ -295,10 +300,15 @@ public:
 
     // Drain readable side fully, respecting ET semantics
     if (event_mask & (EPOLLIN | EPOLLHUP | EPOLLRDHUP)) {
+      // TODO[@zmeadows][P2]: limit iterations and/or rx/tx bytes to tame pathologically hot connections
       for (;;) {
         // 1) Pull everything we can (until EAGAIN or buffer full)
         const std::size_t nrecv = try_fill_rx_buffer();
-        metrics::add_counter<"net.bytes_received">(nrecv);
+
+        const bool rx_blocked = nrecv == 0; // either EAGAIN or not allowed to read
+        if (!rx_blocked) {
+          metrics::add_counter<"net.bytes_received">(nrecv);
+        }
 
         // 2) If the rx buffer has data to process, let the protocol process/consume it
         const std::size_t rx_used_before = rx_buf_.used_space();
@@ -313,7 +323,6 @@ public:
         }
 
         // 4) Stop when we made no forward progress
-        const bool rx_blocked = nrecv == 0; // either EAGAIN or not allowed to read
         if (rx_blocked && !proto_consumed) {
           break;
         }
@@ -350,6 +359,10 @@ public:
   ChannelIO() = delete;
   explicit ChannelIO(Channel<Proto>& ch) : ch_(ch) {}
 
+  // TODO[@zmeadows][P2]: allow protocols to detect when they're backpressured by
+  //    * extending SendResult enum
+  //    * adding a bool backpressured() method to this wrapper
+
   [[nodiscard]] TSKV_INLINE std::span<const std::byte> rx_span() const noexcept
   {
     return ch_.rx_span();
@@ -367,6 +380,7 @@ private:
   Channel<Proto>& ch_;
 };
 
+// TODO[@zmeadows][P1]: move to testing lib
 struct EchoProtocol {
   void on_read(ChannelIO<EchoProtocol>& io)
   {
@@ -409,7 +423,7 @@ private:
 
     [[nodiscard]] Channel<Proto>* acquire() noexcept
     {
-      TSKV_INVARIANT(free_top_ > 0, "acquire with full Chunk");
+      TSKV_DEMAND(free_top_ > 0, "acquire with full Chunk");
       const std::uint16_t next_free_idx = free_stack_[--free_top_];
       return &slots_[next_free_idx];
     }
@@ -417,8 +431,8 @@ private:
     void release(Channel<Proto>* cptr) noexcept
     {
       const std::uint16_t idx = static_cast<std::uint16_t>(cptr - slots_);
-      TSKV_INVARIANT(idx < CHUNK_SIZE, "Channel doesn't live in this Chunk");
-      TSKV_INVARIANT(free_top_ < CHUNK_SIZE, "free_top_ overflow");
+      TSKV_DEMAND(idx < CHUNK_SIZE, "Channel doesn't live in this Chunk");
+      TSKV_DEMAND(free_top_ < CHUNK_SIZE, "free_top_ overflow");
       free_stack_[free_top_++] = idx;
     }
   };
@@ -436,29 +450,33 @@ private:
 
   std::vector<std::unique_ptr<Chunk>> chunks_;
   std::vector<Chunk*>                 nonfull_chunks_;
-  std::unordered_map<int, Handle>     active_;
+
+  // TODO[@zmeadows][P2]: replace with open-addressed hash map tailored to int keys
+  std::unordered_map<int, Handle> active_;
 
 public:
-  ChannelPool(std::size_t initial_capacity = Chunk::CHUNK_SIZE)
+  ChannelPool() { active_.max_load_factor(0.7); }
+
+  void reserve_channels(std::size_t nchannels)
   {
-    active_.max_load_factor(0.8);
-    active_.reserve(5 * initial_capacity / 4);
+    if (nchannels == 0) {
+      return;
+    }
 
-    if (initial_capacity > 0) {
-      const std::size_t chunks_required = ceil_div(initial_capacity, Chunk::CHUNK_SIZE);
-      chunks_.reserve(chunks_required);
-      nonfull_chunks_.reserve(chunks_required);
+    active_.reserve(5 * nchannels / 4);
+    const std::size_t chunks_required = ceil_div(nchannels, Chunk::CHUNK_SIZE);
+    chunks_.reserve(chunks_required);
+    nonfull_chunks_.reserve(chunks_required);
 
-      for (std::size_t ichunk = 0; ichunk < chunks_required; ++ichunk) {
-        allocate_new_chunk();
-      }
+    for (std::size_t ichunk = 0; ichunk < chunks_required; ++ichunk) {
+      allocate_new_chunk();
     }
   }
 
   ChannelPool(const ChannelPool&)            = delete;
   ChannelPool& operator=(const ChannelPool&) = delete;
 
-  ~ChannelPool() { TSKV_INVARIANT(active_.empty(), "destroyed ChannelPool with active channels"); }
+  ~ChannelPool() { TSKV_DEMAND(active_.empty(), "destroyed ChannelPool with active channels"); }
 
   [[nodiscard]] Channel<Proto>* lookup(int fd) const noexcept
   {
@@ -526,6 +544,8 @@ public:
     active_.erase(it);
   }
 
+  // CONTRACT: Do not modify ChannelPool within Fn
+  //   e.g., pool.release(ch) causes UB
   template <typename Fn>
   void for_each(Fn&& fn)
   {
@@ -534,4 +554,5 @@ public:
     }
   }
 };
+
 } // namespace tskv::net

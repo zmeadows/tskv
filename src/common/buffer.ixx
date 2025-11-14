@@ -33,6 +33,35 @@ export namespace tskv::common {
 // TODO[@zmeadows][P3]: Implement higher performance alternatives with identical interface.
 //                      (e.g., sliding window buffer, ring buffer, virtual memory mirrored ring buffer)
 
+template <typename B>
+concept Buffer =
+  std::movable<B> &&
+  requires(
+    B& b, const B& cb, std::span<const std::byte> ssrc, std::span<std::byte> sdst, std::size_t n) {
+    // 1) Basic capacity / occupancy API
+    { B::capacity() } noexcept -> std::same_as<std::size_t>;
+    { cb.used_space() } noexcept -> std::same_as<std::size_t>;
+    { cb.free_space() } noexcept -> std::same_as<std::size_t>;
+    { cb.empty() } noexcept -> std::same_as<bool>;
+    { cb.full() } noexcept -> std::same_as<bool>;
+
+    // 2) State management
+    { b.clear() } noexcept -> std::same_as<void>;
+
+    // 3) Copy-based producer/consumer operations
+    { b.write_from(ssrc) } noexcept -> std::same_as<std::size_t>;
+    { b.read_into(sdst) } noexcept -> std::same_as<std::size_t>;
+
+    // 4) Zero-copy staged I/O
+    { b.writable_span() } noexcept -> std::same_as<std::span<std::byte>>;
+    { b.writable_span(n) } noexcept -> std::same_as<std::span<std::byte>>;
+    { cb.readable_span() } noexcept -> std::same_as<std::span<const std::byte>>;
+    { cb.readable_span(n) } noexcept -> std::same_as<std::span<const std::byte>>;
+
+    { b.commit(n) } noexcept -> std::same_as<void>;
+    { b.consume(n) } noexcept -> std::same_as<void>;
+  };
+
 template <std::size_t BUFSIZE>
 struct SimpleBuffer {
 private:
@@ -110,5 +139,8 @@ public:
     offset_ -= n;
   }
 };
+
+// Quick concept sanity check
+static_assert(Buffer<SimpleBuffer<1024>>);
 
 } // namespace tskv::common
