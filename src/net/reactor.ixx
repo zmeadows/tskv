@@ -235,7 +235,10 @@ void Reactor<Proto>::close_channel(Channel<Proto>* channel) noexcept
 
   struct epoll_event ev{};
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, &ev) == -1) {
-    TSKV_LOG_WARN("epoll_ctl DEL failed for fd={}", client_fd);
+    // TODO[@zmeadows][P1]: structure things such that this check isn't necessary
+    if (errno != ENOENT) { // Ignore "not in set" errors
+      TSKV_LOG_WARN("epoll_ctl DEL failed for fd={}", client_fd);
+    }
   }
 
   channel->detach();

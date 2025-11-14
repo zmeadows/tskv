@@ -154,7 +154,7 @@ private:
         tx_buf_.consume(send_rc);
         bytes_sent += send_rc;
         if (tx_buf_.empty()) {
-          break;
+          return bytes_sent;
         }
       }
       else if (send_rc == -1) {
@@ -163,14 +163,14 @@ private:
           case EWOULDBLOCK:
 #endif
           case EAGAIN: {
-            break;
+            return bytes_sent;
           }
           case EINTR: {
             continue;
           }
           default: {
             handle_error_event();
-            break;
+            return bytes_sent;
           }
         }
       }
