@@ -1,13 +1,11 @@
 #include <cstdint>
 #include <cstdlib>
-#include <expected>
 #include <filesystem>
 #include <iostream>
 #include <print>
 
 #include "macros.hpp"
-
-// TODO[@zmeadows][P2]: replace std::expected error handling here with simple direct process termination.
+#include "tskv/common/logging.hpp"
 
 namespace fs = std::filesystem;
 
@@ -15,6 +13,7 @@ import tskv.cmd.args;
 import tskv.cmd.version;
 import tskv.common.enum_traits;
 import tskv.common.files;
+import tskv.common.logging;
 import tskv.net.server;
 import tskv.net.utils;
 import tskv.storage.wal;
@@ -54,7 +53,7 @@ struct ServerConfig {
   uint64_t          memtable_bytes  = 67108864;
   uint32_t          max_connections = 1024;
 
-  static std::expected<ServerConfig, std::string> from_cli(cmd::CmdLineArgs& args)
+  static ServerConfig from_cli(cmd::CmdLineArgs& args)
   {
     ServerConfig config;
 
@@ -67,25 +66,18 @@ struct ServerConfig {
     TRY_ARG_ASSIGN(args, config.max_connections, "max-connections");
 
     // 2) Validate
-    if (!tn::is_valid_port(config.port)) {
-      return std::unexpected(std::format("invalid_port: expected 1..65535 (got {})", config.port));
-    }
+    TSKV_ASSERT(
+      tn::is_valid_port(config.port), "invalid_port: expected 1..65535 (got {})", config.port);
 
     {
       auto clean_data_dir = tc::standardize_path(config.data_dir);
-      if (!clean_data_dir) {
-        return std::unexpected(std::format("invalid_data_dir: {}", clean_data_dir.error()));
-      }
+      TSKV_ASSERT(clean_data_dir, "invalid_data_dir: {}", config.data_dir.string());
       config.data_dir = *clean_data_dir;
 
       const bool data_dir_exists = fs::exists(config.data_dir);
       const bool parent_bad = !data_dir_exists && !tc::can_create_in(config.data_dir.parent_path());
       const bool leaf_bad   = data_dir_exists && !tc::can_create_in(config.data_dir);
-
-      if (parent_bad || leaf_bad) {
-        return std::unexpected(
-          std::format("write-access unavailable for data-dir: {}", config.data_dir.string()));
-      }
+      TSKV_ASSERT(!parent_bad && !leaf_bad, "invalid_data_dir: {}", config.data_dir.string());
     }
 
     return config;
@@ -104,19 +96,11 @@ struct ServerConfig {
   }
 };
 
-static void print_error(std::string_view msg)
-{
-  std::println(std::cerr, "tskv server ERR :: {}", msg);
-}
-
 int main_(int argc, char** argv)
 {
   cmd::CmdLineArgs args(argc, argv);
 
-  if (auto res = args.parse(); !res) {
-    print_error(res.error());
-    return EXIT_FAILURE;
-  }
+  args.parse();
 
   if (args.pop_flag("help")) {
     print_help();
@@ -129,20 +113,13 @@ int main_(int argc, char** argv)
   }
 
   const auto config = ServerConfig::from_cli(args);
-  if (!config) {
-    print_error(config.error());
-    return EXIT_FAILURE;
-  }
 
   const bool dry_run = args.pop_flag("dry-run");
 
-  if (auto res = args.detect_unused_args(); !res) {
-    print_error(res.error());
-    return EXIT_FAILURE;
-  }
+  args.detect_unused_args();
 
   if (dry_run) {
-    config->print();
+    config.print();
     return EXIT_SUCCESS;
   }
 

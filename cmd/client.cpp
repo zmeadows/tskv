@@ -1,12 +1,13 @@
 #include <cstdint>
 #include <cstdlib>
-#include <expected>
 #include <iostream>
 #include <print>
 
 #include "macros.hpp"
+#include "tskv/common/logging.hpp"
 
 import tskv.common.enum_traits;
+import tskv.common.logging;
 import tskv.storage.wal;
 import tskv.cmd.args;
 import tskv.cmd.version;
@@ -40,7 +41,7 @@ struct ClientConfig {
   uint16_t    port       = 7070;
   uint32_t    timeout_ms = 2000;
 
-  static std::expected<ClientConfig, std::string> from_cli(cmd::CmdLineArgs& args)
+  static ClientConfig from_cli(cmd::CmdLineArgs& args)
   {
     ClientConfig config;
 
@@ -50,9 +51,8 @@ struct ClientConfig {
     TRY_ARG_ASSIGN(args, config.timeout_ms, "timeout-ms");
 
     // 2) Validate
-    if (!tn::is_valid_port(config.port)) {
-      return std::unexpected(std::format("invalid_port: expected 1..65535 (got {})", config.port));
-    }
+    TSKV_ASSERT(
+      tn::is_valid_port(config.port), "invalid_port: expected 1..65535 (got {})", config.port);
 
     return config;
   }
@@ -67,19 +67,11 @@ struct ClientConfig {
   }
 };
 
-static void print_error(std::string_view msg)
-{
-  std::println(std::cerr, "tskv client ERR :: {}", msg);
-}
-
 int main_(int argc, char** argv)
 {
   cmd::CmdLineArgs args(argc, argv);
 
-  if (auto res = args.parse(); !res) {
-    print_error(res.error());
-    return EXIT_FAILURE;
-  }
+  args.parse();
 
   if (args.pop_flag("help")) {
     print_help();
@@ -92,20 +84,13 @@ int main_(int argc, char** argv)
   }
 
   const auto config = ClientConfig::from_cli(args);
-  if (!config) {
-    print_error(config.error());
-    return EXIT_FAILURE;
-  }
 
   const bool dry_run = args.pop_flag("dry-run");
 
-  if (auto res = args.detect_unused_args(); !res) {
-    print_error(res.error());
-    return EXIT_FAILURE;
-  }
+  args.detect_unused_args();
 
   if (dry_run) {
-    config->print();
+    config.print();
     return EXIT_SUCCESS;
   }
 

@@ -409,7 +409,7 @@ private:
 
     [[nodiscard]] Channel<Proto>* acquire() noexcept
     {
-      TSKV_INVARIANT(free_top_ > 0, "acquire with full Chunk");
+      TSKV_DEMAND(free_top_ > 0, "acquire with full Chunk");
       const std::uint16_t next_free_idx = free_stack_[--free_top_];
       return &slots_[next_free_idx];
     }
@@ -417,8 +417,8 @@ private:
     void release(Channel<Proto>* cptr) noexcept
     {
       const std::uint16_t idx = static_cast<std::uint16_t>(cptr - slots_);
-      TSKV_INVARIANT(idx < CHUNK_SIZE, "Channel doesn't live in this Chunk");
-      TSKV_INVARIANT(free_top_ < CHUNK_SIZE, "free_top_ overflow");
+      TSKV_DEMAND(idx < CHUNK_SIZE, "Channel doesn't live in this Chunk");
+      TSKV_DEMAND(free_top_ < CHUNK_SIZE, "free_top_ overflow");
       free_stack_[free_top_++] = idx;
     }
   };
@@ -458,7 +458,7 @@ public:
   ChannelPool(const ChannelPool&)            = delete;
   ChannelPool& operator=(const ChannelPool&) = delete;
 
-  ~ChannelPool() { TSKV_INVARIANT(active_.empty(), "destroyed ChannelPool with active channels"); }
+  ~ChannelPool() { TSKV_DEMAND(active_.empty(), "destroyed ChannelPool with active channels"); }
 
   [[nodiscard]] Channel<Proto>* lookup(int fd) const noexcept
   {

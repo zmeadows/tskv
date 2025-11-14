@@ -49,10 +49,10 @@ std::string random_probe_suffix()
 
 export namespace tskv::common {
 
-std::expected<fs::path, std::string> standardize_path(const fs::path& p)
+std::optional<fs::path> standardize_path(const fs::path& p)
 {
   if (p.empty()) {
-    return std::unexpected("empty path specified.");
+    return {};
   }
 
   fs::path p_clean = fs::absolute(p).lexically_normal();
@@ -63,7 +63,7 @@ std::expected<fs::path, std::string> standardize_path(const fs::path& p)
 
   fs::path parent = p_clean.parent_path();
   if (!fs::exists(parent)) {
-    return std::unexpected(std::format("parent directory doesn't exist ({})", parent.string()));
+    return {};
   }
   parent = fs::canonical(parent);
 

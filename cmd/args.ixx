@@ -1,7 +1,6 @@
 module;
 
 #include <charconv>
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <map>
@@ -13,10 +12,13 @@ module;
 #include <utility>
 #include <vector>
 
+#include "tskv/common/logging.hpp"
+
 export module tskv.cmd.args;
 
 import tskv.storage.wal;
 import tskv.common.enum_traits;
+import tskv.common.logging;
 
 namespace ts = tskv::storage;
 namespace tc = tskv::common;
@@ -39,35 +41,21 @@ public:
   CmdLineArgs(CmdLineArgs&&)                 = delete;
   CmdLineArgs& operator=(CmdLineArgs&&)      = delete;
 
-  [[nodiscard]] std::expected<void, std::string> parse()
+  void parse()
   {
-    auto bail = [&]() -> void {
-      _kvs.clear();
-      _flags.clear();
-    };
-
     size_t i = 1;
     while (i < _args.size()) {
       std::string_view tok(_args[i]);
-      if (!tok.starts_with("--")) {
-        bail();
-        return std::unexpected(
-          std::format("bad_cli_arg: expected flag starting with -- (got \"{}\")", tok));
-      }
+      TSKV_ASSERT(
+        tok.starts_with("--"), "bad_cli_arg: expected flag starting with -- (got \"{}\")", tok);
 
       tok.remove_prefix(2); // strip "--"
 
-      if (tok.empty()) {
-        bail();
-        return std::unexpected(
-          std::format("bad_cli_arg: found unsupported stand-alone double dash \"--\""));
-      }
+      TSKV_ASSERT(!tok.empty(), "bad_cli_arg: found unsupported stand-alone double dash \"--\"");
 
-      if (_kvs.contains(tok) || _flags.contains(tok)) {
-        bail();
-        return std::unexpected(
-          std::format("duplicate_ci_args: key/flag specified twice --{}", tok));
-      }
+      TSKV_ASSERT(!_kvs.contains(tok) && !_flags.contains(tok),
+        "duplicate_ci_args: key/flag specified twice --{}",
+        tok);
 
       // Handle --key value  OR a standalone --flag
       if (i + 1 < _args.size() && !_args[i + 1].starts_with("--")) {
@@ -80,17 +68,16 @@ public:
       }
     }
 
-    return {};
+    return;
   }
 
   [[nodiscard]] bool has_key(std::string_view key) const noexcept { return _kvs.contains(key); }
 
-  template <typename V> std::expected<V, std::string> pop_kv(std::string_view key)
+  template <typename V>
+  V pop_kv(std::string_view key)
   {
     auto kit = _kvs.find(key);
-    if (kit == _kvs.end()) {
-      return std::unexpected(std::format("missing_key: key not found ({})", key));
-    }
+    TSKV_ASSERT(kit != _kvs.end(), "missing_key: key not found ({})", key);
 
     std::string_view sv = kit->second;
     _kvs.erase(kit);
@@ -107,14 +94,13 @@ public:
         return fs::path(sv);
       }
       catch (...) {
-        return std::unexpected(errmsg());
+        TSKV_ASSERT(false, errmsg());
       }
     }
     else if constexpr (std::is_same_v<V, ts::WALSyncPolicy>) {
-      if (auto o_policy = tc::from_string<ts::WALSyncPolicy>(sv); o_policy.has_value()) {
-        return *o_policy;
-      }
-      return std::unexpected(std::format("invalid_wal_sync: unrecognized policy \"{}\"", sv));
+      auto o_policy = tc::from_string<ts::WALSyncPolicy>(sv);
+      TSKV_ASSERT(o_policy.has_value(), "invalid_wal_sync: unrecognized policy \"{}\"", sv);
+      return *o_policy;
     }
     else if constexpr (std::is_integral_v<V> && !std::is_same_v<V, bool>) {
       const char* first = sv.data();
@@ -122,13 +108,9 @@ public:
 
       V out{};
       auto [ptr, ec] = std::from_chars(first, last, out, 10); // base-10; no whitespace
-      if (ec == std::errc{}) {
-        if (ptr != last) {
-          return std::unexpected(errmsg());
-        }
-        return out;
-      }
-      return std::unexpected(errmsg());
+      TSKV_ASSERT(ec == std::errc{}, errmsg());
+      TSKV_ASSERT(ptr == last, errmsg());
+      return out;
     }
     else {
       static_assert(!sizeof(V), "pop_value: unsupported type");
@@ -137,10 +119,10 @@ public:
 
   [[nodiscard]] bool pop_flag(std::string_view flag) noexcept { return _flags.erase(flag) != 0; }
 
-  std::expected<void, std::string> detect_unused_args()
+  void detect_unused_args()
   {
     if (_kvs.empty() && _flags.empty()) {
-      return {};
+      return;
     }
 
     std::string errmsg = "unused_cli_args: ";
@@ -153,7 +135,7 @@ public:
       errmsg.append(std::format("--{} ", f));
     }
 
-    return std::unexpected(errmsg);
+    TSKV_ASSERT(false, errmsg);
   }
 };
 

@@ -32,21 +32,21 @@ int register_epoll_timer(
   int epfd, std::chrono::nanoseconds initial, std::chrono::nanoseconds interval)
 {
   int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-  TSKV_INVARIANT(timer_fd != -1, "failed to create epoll timer");
+  TSKV_DEMAND(timer_fd != -1, "failed to create epoll timer");
 
   struct itimerspec new_value;
   new_value.it_value    = tc::to_timespec(initial);
   new_value.it_interval = tc::to_timespec(interval);
 
   bool timer_configure_success = timerfd_settime(timer_fd, 0, &new_value, NULL) != -1;
-  TSKV_INVARIANT(timer_configure_success, "failed to configure epoll timer");
+  TSKV_DEMAND(timer_configure_success, "failed to configure epoll timer");
 
   struct epoll_event timer_event;
   timer_event.events  = EPOLLIN; // monitor for readability (timer expiration)
   timer_event.data.fd = timer_fd;
 
   bool timer_register_success = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, timer_fd, &timer_event) != -1;
-  TSKV_INVARIANT(timer_register_success, "failed to register epoll timer");
+  TSKV_DEMAND(timer_register_success, "failed to register epoll timer");
 
   return timer_fd;
 }
@@ -123,16 +123,16 @@ Reactor<Proto>::Reactor()
   { // epoll
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     TSKV_LOG_INFO("epoll_fd_ = {}", epoll_fd_);
-    TSKV_INVARIANT(epoll_fd_ != -1, "Failed to create epoll instance.");
+    TSKV_DEMAND(epoll_fd_ != -1, "Failed to create epoll instance.");
   }
 
   { // wakeup
     wakeup_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    TSKV_INVARIANT(wakeup_fd_ != -1, "eventfd failed");
+    TSKV_DEMAND(wakeup_fd_ != -1, "eventfd failed");
 
     epoll_event wev{.events = EPOLLIN, .data = {.fd = wakeup_fd_}};
     const int   wrc = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, wakeup_fd_, &wev);
-    TSKV_INVARIANT(wrc != -1, "epoll add wakeup_fd_ failed");
+    TSKV_DEMAND(wrc != -1, "epoll add wakeup_fd_ failed");
   }
 
   { // signals
@@ -143,10 +143,10 @@ Reactor<Proto>::Reactor()
     pthread_sigmask(SIG_BLOCK, &mask, nullptr);
 
     signal_fd_ = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
-    TSKV_INVARIANT(signal_fd_ != -1, "signalfd failed");
+    TSKV_DEMAND(signal_fd_ != -1, "signalfd failed");
 
     epoll_event ev{.events = EPOLLIN, .data = {.fd = signal_fd_}};
-    TSKV_INVARIANT(
+    TSKV_DEMAND(
       epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, signal_fd_, &ev) != -1, "epoll add signalfd failed");
   }
 }
@@ -211,7 +211,7 @@ void Reactor<Proto>::request_shutdown() noexcept
 template <Protocol Proto>
 void Reactor<Proto>::add_listener(int listener_fd)
 {
-  TSKV_INVARIANT(listener_fd_ == -1, "multiple listeners not currently supported");
+  TSKV_DEMAND(listener_fd_ == -1, "multiple listeners not currently supported");
   // To support multiple listeners:
   // * store a small vector of listener fds (each EPOLLIN|EPOLLET-registered)
   // * tag epoll events (e.g., via event.data.u64 or a pointer wrapper) to distinguish listeners from channels, and
@@ -219,7 +219,7 @@ void Reactor<Proto>::add_listener(int listener_fd)
 
   const int  flags        = fcntl(listener_fd, F_GETFL, 0);
   const bool non_blocking = (flags & O_NONBLOCK) != 0;
-  TSKV_INVARIANT(flags != -1 && non_blocking, "invalid listener flags (blocking or broken)");
+  TSKV_DEMAND(flags != -1 && non_blocking, "invalid listener flags (blocking or broken)");
 
   struct epoll_event event{};
   event.events  = EPOLLIN | EPOLLET;
@@ -227,7 +227,7 @@ void Reactor<Proto>::add_listener(int listener_fd)
 
   bool epoll_init_success = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listener_fd, &event) != -1;
   TSKV_LOG_INFO("listener_fd = {}", listener_fd);
-  TSKV_INVARIANT(epoll_init_success, "failed to register listener with epoll_ctl");
+  TSKV_DEMAND(epoll_init_success, "failed to register listener with epoll_ctl");
 
   listener_fd_ = listener_fd;
 }
