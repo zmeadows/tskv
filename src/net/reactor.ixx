@@ -85,8 +85,8 @@ private:
   Reactor(const Reactor&)            = delete;
   Reactor& operator=(const Reactor&) = delete;
 
-  void on_channel_event(Channel<Proto>* channel, std::uint32_t event_mask);
-  void on_listener_event();
+  void on_channel_event(Channel<Proto>* channel, std::uint32_t event_mask) noexcept;
+  void on_listener_event() noexcept;
 
   void on_wakeup_event()
   {
@@ -112,7 +112,7 @@ public:
   Reactor(const ServerConfig& config);
   ~Reactor();
 
-  void poll_once();
+  void poll_once() noexcept;
   void run();
   void request_shutdown() noexcept;
 };
@@ -247,7 +247,7 @@ void Reactor<Proto>::close_channel(Channel<Proto>* channel) noexcept
 }
 
 template <Protocol Proto>
-void Reactor<Proto>::on_channel_event(Channel<Proto>* channel, std::uint32_t event_mask)
+void Reactor<Proto>::on_channel_event(Channel<Proto>* channel, std::uint32_t event_mask) noexcept
 {
   const int client_fd = channel->fd();
 
@@ -275,7 +275,7 @@ void Reactor<Proto>::on_channel_event(Channel<Proto>* channel, std::uint32_t eve
 }
 
 template <Protocol Proto>
-void Reactor<Proto>::on_listener_event()
+void Reactor<Proto>::on_listener_event() noexcept
 {
   while (true) {
     sockaddr_storage client_addr{};
@@ -327,7 +327,7 @@ void Reactor<Proto>::on_listener_event()
 }
 
 template <Protocol Proto>
-void Reactor<Proto>::poll_once()
+void Reactor<Proto>::poll_once() noexcept
 {
   int nevents;
   do {

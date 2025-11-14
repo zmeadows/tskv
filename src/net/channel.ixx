@@ -136,7 +136,7 @@ private:
     proto_.on_error(io, err);
   }
 
-  std::size_t try_flush_tx_buffer()
+  std::size_t try_flush_tx_buffer() noexcept
   {
     if (!can_write()) {
       return 0;
@@ -178,7 +178,7 @@ private:
     return bytes_sent;
   }
 
-  std::size_t try_fill_rx_buffer()
+  std::size_t try_fill_rx_buffer() noexcept
   {
     if (!can_read()) {
       return 0;
