@@ -258,13 +258,20 @@ void Reactor<Proto>::on_channel_event(Channel<Proto>* channel, std::uint32_t eve
     return;
   }
 
-  // TODO[@zmeadows][P2]: if this shows up in profiler, save previous mask and compare, don't always MOD
   const std::uint32_t new_mask = channel->desired_events() | EPOLLET | EPOLLRDHUP;
-  struct epoll_event  event{};
-  event.events  = new_mask;
-  event.data.fd = client_fd;
-  if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event) == -1) {
-    TSKV_LOG_WARN("epoll_ctl MOD failed for fd={}", client_fd);
+
+  if (channel->get_last_event_mask() != new_mask) {
+    struct epoll_event event{};
+    event.events  = new_mask;
+    event.data.fd = client_fd;
+
+    const bool mod_success = epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event) == -1;
+    if (mod_success) {
+      channel->set_last_event_mask(new_mask);
+    }
+    else {
+      TSKV_LOG_WARN("epoll_ctl MOD failed for fd={}", client_fd);
+    }
   }
 }
 
