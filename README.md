@@ -17,7 +17,7 @@
 
 ## ⚑ Roadmap (high-level)
 - [x] v0.1 — Bootstrap: README, CLI, PR template
-- [ ] v0.2 — Non-blocking TCP + epoll echo; clean shutdown
+- [x] v0.2 — Non-blocking TCP + epoll echo; clean shutdown
 - [ ] v0.3 — Framing: header + length; PING/PONG
 - [ ] v0.4 — Connection state: RX/TX rings; backpressure cap
 - [ ] v0.5 — Engine queues: SPSC/MPSC; dispatcher

@@ -1,6 +1,6 @@
 add_cli_test(cli.server.smoke tskv_server
   ARGS --dry-run
-  PASS "tskv.*server.*CFG.*host=0.0.0.0.*port=7070.*wal-sync=append.*memtable-bytes=67108864.*max-connections=1024"
+  PASS "tskv.*server.*CFG.*host=localhost.*port=7070.*wal-sync=append.*memtable-bytes=67108864.*max-connections=1024"
   LABELS "cli;cmd.server")
 
 add_cli_test(cli.server.help tskv_server

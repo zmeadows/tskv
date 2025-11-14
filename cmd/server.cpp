@@ -1,13 +1,11 @@
-#include <cstdint>
 #include <cstdlib>
-#include <expected>
 #include <filesystem>
 #include <iostream>
 #include <print>
+#include <signal.h>
 
 #include "macros.hpp"
-
-// TODO[@zmeadows][P2]: replace std::expected error handling here with simple direct process termination.
+#include "tskv/common/logging.hpp"
 
 namespace fs = std::filesystem;
 
@@ -15,14 +13,47 @@ import tskv.cmd.args;
 import tskv.cmd.version;
 import tskv.common.enum_traits;
 import tskv.common.files;
+import tskv.common.logging;
+import tskv.net.reactor;
 import tskv.net.server;
 import tskv.net.utils;
+import tskv.net.channel;
 import tskv.storage.wal;
 
 namespace tc  = tskv::common;
 namespace ts  = tskv::storage;
 namespace tn  = tskv::net;
 namespace cmd = tskv::cmd;
+
+static tn::ServerConfig from_cli(cmd::CmdLineArgs& args)
+{
+  tn::ServerConfig config;
+
+  // 1) Parse
+  TRY_ARG_ASSIGN(args, config.host, "host");
+  TRY_ARG_ASSIGN(args, config.port, "port");
+  TRY_ARG_ASSIGN(args, config.data_dir, "data-dir");
+  TRY_ARG_ASSIGN(args, config.wal_sync_policy, "wal-sync");
+  TRY_ARG_ASSIGN(args, config.memtable_bytes, "memtable-bytes");
+  TRY_ARG_ASSIGN(args, config.max_connections, "max-connections");
+
+  // 2) Validate
+  TSKV_REQUIRE(
+    tn::is_valid_port(config.port), "invalid_port: expected 1..65535 (got {})", config.port);
+
+  {
+    auto clean_data_dir = tc::standardize_path(config.data_dir);
+    TSKV_REQUIRE(clean_data_dir, "invalid_data_dir: {}", config.data_dir.string());
+    config.data_dir = *clean_data_dir;
+
+    const bool data_dir_exists = fs::exists(config.data_dir);
+    const bool parent_bad = !data_dir_exists && !tc::can_create_in(config.data_dir.parent_path());
+    const bool leaf_bad   = data_dir_exists && !tc::can_create_in(config.data_dir);
+    TSKV_REQUIRE(!parent_bad && !leaf_bad, "invalid_data_dir: {}", config.data_dir.string());
+  }
+
+  return config;
+}
 
 static void print_help()
 {
@@ -46,77 +77,13 @@ static void print_help()
   println("  --help                     Show this help and exit");
 }
 
-struct ServerConfig {
-  std::string       host            = "0.0.0.0";
-  uint16_t          port            = 7070;
-  fs::path          data_dir        = "./data";
-  ts::WALSyncPolicy wal_sync_policy = ts::WALSyncPolicy::Append;
-  uint64_t          memtable_bytes  = 67108864;
-  uint32_t          max_connections = 1024;
-
-  static std::expected<ServerConfig, std::string> from_cli(cmd::CmdLineArgs& args)
-  {
-    ServerConfig config;
-
-    // 1) Parse
-    TRY_ARG_ASSIGN(args, config.host, "host");
-    TRY_ARG_ASSIGN(args, config.port, "port");
-    TRY_ARG_ASSIGN(args, config.data_dir, "data-dir");
-    TRY_ARG_ASSIGN(args, config.wal_sync_policy, "wal-sync");
-    TRY_ARG_ASSIGN(args, config.memtable_bytes, "memtable-bytes");
-    TRY_ARG_ASSIGN(args, config.max_connections, "max-connections");
-
-    // 2) Validate
-    if (!tn::is_valid_port(config.port)) {
-      return std::unexpected(std::format("invalid_port: expected 1..65535 (got {})", config.port));
-    }
-
-    {
-      auto clean_data_dir = tc::standardize_path(config.data_dir);
-      if (!clean_data_dir) {
-        return std::unexpected(std::format("invalid_data_dir: {}", clean_data_dir.error()));
-      }
-      config.data_dir = *clean_data_dir;
-
-      const bool data_dir_exists = fs::exists(config.data_dir);
-      const bool parent_bad = !data_dir_exists && !tc::can_create_in(config.data_dir.parent_path());
-      const bool leaf_bad   = data_dir_exists && !tc::can_create_in(config.data_dir);
-
-      if (parent_bad || leaf_bad) {
-        return std::unexpected(
-          std::format("write-access unavailable for data-dir: {}", config.data_dir.string()));
-      }
-    }
-
-    return config;
-  }
-
-  void print() const
-  {
-    std::print("tskv server CFG ::");
-    std::print(" host={}", this->host);
-    std::print(" port={}", this->port);
-    std::print(" data-dir={}", this->data_dir.string());
-    std::print(" wal-sync={}", tc::to_string(this->wal_sync_policy));
-    std::print(" memtable-bytes={}", this->memtable_bytes);
-    std::print(" max-connections={}", this->max_connections);
-    std::print("\n");
-  }
-};
-
-static void print_error(std::string_view msg)
-{
-  std::println(std::cerr, "tskv server ERR :: {}", msg);
-}
-
 int main_(int argc, char** argv)
 {
+  TSKV_SET_LOG_LEVEL(Trace); // TODO[@zmeadows][P3]: add a CLI flag for this?
+
   cmd::CmdLineArgs args(argc, argv);
 
-  if (auto res = args.parse(); !res) {
-    print_error(res.error());
-    return EXIT_FAILURE;
-  }
+  args.parse();
 
   if (args.pop_flag("help")) {
     print_help();
@@ -128,25 +95,21 @@ int main_(int argc, char** argv)
     return EXIT_SUCCESS;
   }
 
-  const auto config = ServerConfig::from_cli(args);
-  if (!config) {
-    print_error(config.error());
-    return EXIT_FAILURE;
-  }
+  const tn::ServerConfig config = from_cli(args);
 
   const bool dry_run = args.pop_flag("dry-run");
 
-  if (auto res = args.detect_unused_args(); !res) {
-    print_error(res.error());
-    return EXIT_FAILURE;
-  }
+  args.enforce_no_unused_args();
 
   if (dry_run) {
-    config->print();
+    config.print();
     return EXIT_SUCCESS;
   }
 
-  tn::scratch_main();
+  (void)signal(SIGPIPE, SIG_IGN);
+
+  tn::Reactor<tn::EchoProtocol> reactor(config);
+  reactor.run();
 
   return EXIT_SUCCESS;
 }
