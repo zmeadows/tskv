@@ -46,14 +46,14 @@ public:
     size_t i = 1;
     while (i < _args.size()) {
       std::string_view tok(_args[i]);
-      TSKV_ASSERT(
+      TSKV_REQUIRE(
         tok.starts_with("--"), "bad_cli_arg: expected flag starting with -- (got \"{}\")", tok);
 
       tok.remove_prefix(2); // strip "--"
 
-      TSKV_ASSERT(!tok.empty(), "bad_cli_arg: found unsupported stand-alone double dash \"--\"");
+      TSKV_REQUIRE(!tok.empty(), "bad_cli_arg: found unsupported stand-alone double dash \"--\"");
 
-      TSKV_ASSERT(!_kvs.contains(tok) && !_flags.contains(tok),
+      TSKV_REQUIRE(!_kvs.contains(tok) && !_flags.contains(tok),
         "duplicate_ci_args: key/flag specified twice --{}",
         tok);
 
@@ -77,7 +77,7 @@ public:
   V pop_kv(std::string_view key)
   {
     auto kit = _kvs.find(key);
-    TSKV_ASSERT(kit != _kvs.end(), "missing_key: key not found ({})", key);
+    TSKV_REQUIRE(kit != _kvs.end(), "missing_key: key not found ({})", key);
 
     std::string_view sv = kit->second;
     _kvs.erase(kit);
@@ -94,12 +94,12 @@ public:
         return fs::path(sv);
       }
       catch (...) {
-        TSKV_ASSERT(false, errmsg());
+        TSKV_REQUIRE(false, errmsg());
       }
     }
     else if constexpr (std::is_same_v<V, ts::WALSyncPolicy>) {
       auto o_policy = tc::from_string<ts::WALSyncPolicy>(sv);
-      TSKV_ASSERT(o_policy.has_value(), "invalid_wal_sync: unrecognized policy \"{}\"", sv);
+      TSKV_REQUIRE(o_policy.has_value(), "invalid_wal_sync: unrecognized policy \"{}\"", sv);
       return *o_policy;
     }
     else if constexpr (std::is_integral_v<V> && !std::is_same_v<V, bool>) {
@@ -108,8 +108,8 @@ public:
 
       V out{};
       auto [ptr, ec] = std::from_chars(first, last, out, 10); // base-10; no whitespace
-      TSKV_ASSERT(ec == std::errc{}, errmsg());
-      TSKV_ASSERT(ptr == last, errmsg());
+      TSKV_REQUIRE(ec == std::errc{}, errmsg());
+      TSKV_REQUIRE(ptr == last, errmsg());
       return out;
     }
     else {
@@ -135,7 +135,7 @@ public:
       errmsg.append(std::format("--{} ", f));
     }
 
-    TSKV_ASSERT(false, errmsg);
+    TSKV_REQUIRE(false, errmsg);
   }
 };
 

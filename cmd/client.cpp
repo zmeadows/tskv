@@ -51,7 +51,7 @@ struct ClientConfig {
     TRY_ARG_ASSIGN(args, config.timeout_ms, "timeout-ms");
 
     // 2) Validate
-    TSKV_ASSERT(
+    TSKV_REQUIRE(
       tn::is_valid_port(config.port), "invalid_port: expected 1..65535 (got {})", config.port);
 
     return config;

@@ -216,7 +216,7 @@ private:
       }
     }
 
-    std::unreachable();
+    return bytes_received;
   }
 
   [[nodiscard]] TSKV_INLINE std::span<const std::byte> rx_span() const noexcept

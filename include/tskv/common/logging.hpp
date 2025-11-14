@@ -57,7 +57,7 @@
     }                                                                                              \
   } while (false)
 
-#define TSKV_ASSERT(expr, fmt, ...)                                                                \
+#define TSKV_REQUIRE(expr, fmt, ...)                                                               \
   do {                                                                                             \
     if (!(expr)) [[unlikely]] {                                                                    \
       ::tskv::common::log_terminal_error<false>(                                                   \

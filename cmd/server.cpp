@@ -36,18 +36,18 @@ static tn::ServerConfig from_cli(cmd::CmdLineArgs& args)
   TRY_ARG_ASSIGN(args, config.max_connections, "max-connections");
 
   // 2) Validate
-  TSKV_ASSERT(
+  TSKV_REQUIRE(
     tn::is_valid_port(config.port), "invalid_port: expected 1..65535 (got {})", config.port);
 
   {
     auto clean_data_dir = tc::standardize_path(config.data_dir);
-    TSKV_ASSERT(clean_data_dir, "invalid_data_dir: {}", config.data_dir.string());
+    TSKV_REQUIRE(clean_data_dir, "invalid_data_dir: {}", config.data_dir.string());
     config.data_dir = *clean_data_dir;
 
     const bool data_dir_exists = fs::exists(config.data_dir);
     const bool parent_bad = !data_dir_exists && !tc::can_create_in(config.data_dir.parent_path());
     const bool leaf_bad   = data_dir_exists && !tc::can_create_in(config.data_dir);
-    TSKV_ASSERT(!parent_bad && !leaf_bad, "invalid_data_dir: {}", config.data_dir.string());
+    TSKV_REQUIRE(!parent_bad && !leaf_bad, "invalid_data_dir: {}", config.data_dir.string());
   }
 
   return config;
