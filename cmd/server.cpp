@@ -79,6 +79,8 @@ static void print_help()
 
 int main_(int argc, char** argv)
 {
+  TSKV_SET_LOG_LEVEL(Trace); // TODO[@zmeadows][P3]: add a CLI flag for this?
+
   cmd::CmdLineArgs args(argc, argv);
 
   args.parse();

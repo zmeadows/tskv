@@ -39,6 +39,7 @@ inline std::size_t ceil_div(std::size_t x, std::size_t y)
   return x / y + (x % y != 0);
 }
 
+// TODO[@zmeadows][P2]: stricter requirements: default-constructible, nothrow, etc
 template <class P, class IO>
 concept ProtocolFor = requires(P p, IO& io, int ec) {
   { p.on_read(io) } -> std::same_as<void>;

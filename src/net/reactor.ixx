@@ -175,6 +175,7 @@ Reactor<Proto>::~Reactor()
     close_listener();
   }
 
+  // TODO[@zmeadows][P1]: introduce owning wrapper (UniqueFd) around integer file descriptor
   if (wakeup_fd_ != -1) {
     ::close(wakeup_fd_);
   }

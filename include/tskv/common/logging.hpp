@@ -18,7 +18,7 @@
 #define TSKV_LEVEL_ERROR ::tskv::common::LogLevel::Error
 #define TSKV_LEVEL_CRITICAL ::tskv::common::LogLevel::Critical
 
-// Compile-time active level (you can override this in your build if you want).
+// TODO[@zmeadows][P2]: actually use this #define to limit log level at compile time
 #ifndef TSKV_LOG_ACTIVE_LEVEL
 #  ifdef NDEBUG
 #    define TSKV_LOG_ACTIVE_LEVEL TSKV_LEVEL_INFO
@@ -29,7 +29,6 @@
 
 // --------------------------------------------------------------------------
 // Core generic macro: TSKV_LOG(level_enum, fmt, ...)
-// (You can later add compile-time stripping logic using TSKV_LOG_ACTIVE_LEVEL.)
 // --------------------------------------------------------------------------
 
 #define TSKV_LOG(level, fmt, ...)                                                                  \

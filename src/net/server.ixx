@@ -9,8 +9,6 @@ module;
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "tskv/common/logging.hpp"
-
 export module tskv.net.server;
 
 import tskv.common.buffer;
