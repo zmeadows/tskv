@@ -358,6 +358,10 @@ public:
   ChannelIO() = delete;
   explicit ChannelIO(Channel<Proto>& ch) : ch_(ch) {}
 
+  // TODO[@zmeadows][P2]: allow protocols to detect when they're backpressured by
+  //    * extending SendResult enum
+  //    * adding a bool backpressured() method to this wrapper
+
   [[nodiscard]] TSKV_INLINE std::span<const std::byte> rx_span() const noexcept
   {
     return ch_.rx_span();
