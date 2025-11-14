@@ -1,8 +1,8 @@
-#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <print>
+#include <signal.h>
 
 #include "macros.hpp"
 #include "tskv/common/logging.hpp"
@@ -14,8 +14,10 @@ import tskv.cmd.version;
 import tskv.common.enum_traits;
 import tskv.common.files;
 import tskv.common.logging;
+import tskv.net.reactor;
 import tskv.net.server;
 import tskv.net.utils;
+import tskv.net.channel;
 import tskv.storage.wal;
 
 namespace tc  = tskv::common;
@@ -102,7 +104,10 @@ int main_(int argc, char** argv)
     return EXIT_SUCCESS;
   }
 
-  tn::scratch_main();
+  (void)signal(SIGPIPE, SIG_IGN);
+
+  tn::Reactor<tn::EchoProtocol> reactor(config);
+  reactor.run();
 
   return EXIT_SUCCESS;
 }

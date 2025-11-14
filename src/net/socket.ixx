@@ -1,6 +1,8 @@
 module;
 
 #include <cassert>
+#include <charconv>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -31,7 +33,7 @@ bool set_socket_nonblocking(int fd)
   return true;
 }
 
-int start_listener()
+int start_listener(const char* const host, std::uint16_t port)
 {
   addrinfo  hints{};
   addrinfo* servinfo = nullptr;
@@ -39,7 +41,12 @@ int start_listener()
   hints.ai_family   = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM; // TCP
 
-  if (int status = getaddrinfo("localhost", "8080", &hints, &servinfo); status != 0) {
+  char portbuf[8]{};
+  auto [ptr, ec] = std::to_chars(portbuf, portbuf + 8, port);
+  TSKV_DEMAND(ec == std::errc{}, "failed to convert port number ({}) to string", port);
+  *ptr = '\0'; // Null-terminate the string in the buffer
+
+  if (int status = getaddrinfo(host, portbuf, &hints, &servinfo); status != 0) {
     const auto errmsg = gai_strerror(status);
     TSKV_LOG_ERROR("getaddrinfo failure: {}", errmsg);
     return -1;

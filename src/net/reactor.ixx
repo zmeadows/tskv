@@ -21,6 +21,7 @@ export module tskv.net.reactor;
 import tskv.common.logging;
 import tskv.common.metrics;
 import tskv.net.channel;
+import tskv.net.server;
 import tskv.net.socket;
 
 namespace metrics = tskv::common::metrics;
@@ -108,22 +109,38 @@ private:
   void close_listener() noexcept;
 
 public:
-  Reactor();
+  Reactor(const ServerConfig& config);
   ~Reactor();
 
-  void add_listener(int listener_fd); // hands over ownership
   void poll_once();
   void run();
   void request_shutdown() noexcept;
 };
 
 template <Protocol Proto>
-Reactor<Proto>::Reactor()
+Reactor<Proto>::Reactor(const ServerConfig& config)
 {
   { // epoll
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     TSKV_LOG_INFO("epoll_fd_ = {}", epoll_fd_);
     TSKV_DEMAND(epoll_fd_ != -1, "Failed to create epoll instance.");
+  }
+
+  { // listener
+    listener_fd_ = start_listener(config.host.c_str(), config.port);
+    TSKV_DEMAND(listener_fd_ != -1, "failed to bind/listen (IPv4)");
+
+    const int  flags        = fcntl(listener_fd_, F_GETFL, 0);
+    const bool non_blocking = (flags & O_NONBLOCK) != 0;
+    TSKV_DEMAND(flags != -1 && non_blocking, "invalid listener flags (blocking or broken)");
+
+    struct epoll_event event{};
+    event.events  = EPOLLIN | EPOLLET;
+    event.data.fd = listener_fd_;
+
+    bool epoll_init_success = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listener_fd_, &event) != -1;
+    TSKV_LOG_INFO("listener_fd = {}", listener_fd_);
+    TSKV_DEMAND(epoll_init_success, "failed to register listener with epoll_ctl");
   }
 
   { // wakeup
@@ -206,30 +223,6 @@ void Reactor<Proto>::request_shutdown() noexcept
 
   // 4) close already-finished sockets now
   sweep_closing_channels();
-}
-
-template <Protocol Proto>
-void Reactor<Proto>::add_listener(int listener_fd)
-{
-  TSKV_DEMAND(listener_fd_ == -1, "multiple listeners not currently supported");
-  // To support multiple listeners:
-  // * store a small vector of listener fds (each EPOLLIN|EPOLLET-registered)
-  // * tag epoll events (e.g., via event.data.u64 or a pointer wrapper) to distinguish listeners from channels, and
-  // * dispatch `accept4()` on whichever listener produced the event.
-
-  const int  flags        = fcntl(listener_fd, F_GETFL, 0);
-  const bool non_blocking = (flags & O_NONBLOCK) != 0;
-  TSKV_DEMAND(flags != -1 && non_blocking, "invalid listener flags (blocking or broken)");
-
-  struct epoll_event event{};
-  event.events  = EPOLLIN | EPOLLET;
-  event.data.fd = listener_fd;
-
-  bool epoll_init_success = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listener_fd, &event) != -1;
-  TSKV_LOG_INFO("listener_fd = {}", listener_fd);
-  TSKV_DEMAND(epoll_init_success, "failed to register listener with epoll_ctl");
-
-  listener_fd_ = listener_fd;
 }
 
 template <Protocol Proto>
